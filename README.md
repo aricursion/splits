@@ -1,2 +1,2 @@
-# SPLIT
-Satisfiability Parallelism Leveraging Iterative Trees
+# SPLITS
+Satisfiability Parallelism Leveraging Ideal Tree Splits

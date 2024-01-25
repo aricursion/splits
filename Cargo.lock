@@ -181,7 +181,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "split"
+name = "splits"
 version = "0.1.0"
 dependencies = [
  "clap",
