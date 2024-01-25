@@ -4,6 +4,9 @@ use clap::Parser;
 pub struct Args {
     #[arg(short, long)]
     pub config_file: String,
+
+    #[arg(long, default_value_t = false)]
+    pub no_confirm: bool,
 }
 
 pub fn get_args() -> Args {

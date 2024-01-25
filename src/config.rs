@@ -1,4 +1,6 @@
 use is_executable::IsExecutable;
+use rayon;
+use std::fmt::{format, write};
 use std::path::Path;
 use std::{fmt, fs, io};
 
@@ -6,6 +8,14 @@ use std::{fmt, fs, io};
 pub enum Comparator {
     Max,
     Min,
+}
+impl fmt::Display for Comparator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Comparator::Max => write!(f, "max"),
+            Comparator::Min => write!(f, "min"),
+        }
+    }
 }
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -19,6 +29,28 @@ pub struct Config {
     tmp_dir: String,
     tracked_metrics: Vec<String>,
     evaluation_metric: String,
+    thread_count: usize,
+    search_depth: u32,
+}
+
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut vec_output = Vec::with_capacity(11);
+        vec_output.push(format!("Variables: {:?}", self.variables));
+        vec_output.push(format!("Comparator: {}", self.comparator));
+        vec_output.push(format!("Timeout: {}", self.timeout));
+        vec_output.push(format!("Solver: {}", self.solver));
+        vec_output.push(format!("CNF: <omitted due to size>"));
+        vec_output.push(format!("Output directory: {}", self.output_dir));
+        vec_output.push(format!("Temporary directory: {}", self.tmp_dir));
+        vec_output.push(format!("Tracked metrics: {:?}", self.tracked_metrics));
+        vec_output.push(format!("Evaluation metric: {}", self.evaluation_metric));
+        vec_output.push(format!("Thread count: {}", self.thread_count));
+        vec_output.push(format!("Search depth: {}", self.search_depth));
+
+        let output_str = vec_output.join("\n");
+        write!(f, "{}", output_str)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +80,9 @@ impl Config {
         let mut tmp_dir = String::from("splits_working_directory");
         let mut tracked_metrics = Vec::new();
         let mut evaluation_metric = String::from("");
+
+        let mut search_depth = 1;
+        let mut thread_count = rayon::max_num_threads();
 
         let mut is_set: [bool; 5] = [false, false, false, false, false];
 
@@ -138,6 +173,34 @@ impl Config {
                     evaluation_metric = argument.to_string();
                     is_set[4] = true;
                 }
+                "search depth" => match argument.parse::<u32>() {
+                    Ok(u) => {
+                        if u == 0 {
+                            return Err(ConfigError(
+                                "0 is not a valid search depth.".to_string(),
+                            ));
+                        } else {
+                            search_depth = u;
+                        }
+                    }
+                    Err(_) => {
+                        return Err(ConfigError(format!("Cannot parse {argument} as a search depth. Please make sure it is a positive integers.")));
+                    }
+                },
+                "thread count" => match argument.parse::<usize>() {
+                    Ok(u) => {
+                        if u == 0 {
+                            return Err(ConfigError(
+                                "0 is not a valid number of threads.".to_string(),
+                            ));
+                        } else {
+                            thread_count = u;
+                        }
+                    }
+                    Err(_) => {
+                        return Err(ConfigError(format!("Cannot parse {argument} as a number of threads. Please make sure it is a positive integers.")));
+                    }
+                },
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting {unknown}")));
                 }
@@ -166,6 +229,8 @@ impl Config {
             tmp_dir,
             tracked_metrics,
             evaluation_metric,
+            thread_count,
+            search_depth,
         })
     }
 }
