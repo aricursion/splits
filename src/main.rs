@@ -12,8 +12,7 @@ fn main() -> Result<(), std::io::Error> {
     let config = match Config::parse_config(&config_string) {
         Ok(c) => c,
         Err(ConfigError(s)) => {
-            println!("Config Error:");
-            println!("{}", s);
+            println!("Config Error: {}", s);
             exit(1);
         }
     };

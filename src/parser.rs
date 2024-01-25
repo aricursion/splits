@@ -42,7 +42,7 @@ impl Config {
         let mut variables = Vec::new();
         let mut comparator = Comparator::Min;
         let mut solver = String::from("");
-        let mut timeout = 0;
+        let mut timeout = 600;
         let mut cnf = String::from("");
         let mut output_dir = String::from("splits_output_directory");
         let mut tmp_dir = String::from("splits_working_directory");
