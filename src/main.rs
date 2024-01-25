@@ -1,7 +1,7 @@
 mod cmd_line;
-mod parser;
+mod config;
 
-use crate::parser::{Config, ConfigError};
+use crate::config::{Config, ConfigError};
 use cmd_line::*;
 use std::fs;
 use std::process::exit;

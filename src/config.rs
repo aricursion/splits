@@ -31,14 +31,14 @@ impl fmt::Display for ConfigError {
 }
 
 impl From<io::Error> for ConfigError {
-    fn from(_: io::Error) -> Self {
-        // convert Error1 to string, I'll just snip the implementation
-        Self("IO Error when parsing config".to_string())
+    fn from(e: io::Error) -> Self {
+        Self(format!("IO Error while parsing config: {e}"))
     }
 }
 
 impl Config {
     pub fn parse_config(config_string: &str) -> Result<Self, ConfigError> {
+        let trimmed_cfg_string = config_string.trim();
         let mut variables = Vec::new();
         let mut comparator = Comparator::Min;
         let mut solver = String::from("");
@@ -53,7 +53,7 @@ impl Config {
 
         fn is_set_error(i: u32) -> String {
             let out_str = match i {
-                0 => "Please provide variables in the cofig.",
+                0 => "Please provide variables in the config.",
                 1 => "Please provide the path of the solver in the config.",
                 2 => "Please provide the path of the cnf file in the config.",
                 3 => "Please provide a list of tracked metrics in the config.",
@@ -62,26 +62,26 @@ impl Config {
             };
             return out_str.to_string();
         }
-        for line in config_string.lines() {
-            let partial_parse_line = line.split(":").collect::<Vec<&str>>();
-            let name = partial_parse_line[0];
+        for line in trimmed_cfg_string.lines() {
+            let partial_parse_line = line.split(':').collect::<Vec<&str>>();
+            let name = partial_parse_line[0].trim();
             let argument = partial_parse_line[1].trim();
 
             match name {
                 "variables" => {
-                    for var_str in argument.split(" ") {
+                    for var_str in argument.split(' ') {
                         match var_str.parse::<u32>() {
                             Ok(u) => {
                                 if u == 0 {
                                     return Err(ConfigError(
-                                        "0 is not a valid cnf variable".to_string(),
+                                        "0 is not a valid cnf variable.".to_string(),
                                     ));
                                 } else {
                                     variables.push(u)
                                 }
                             }
                             Err(_) => {
-                                return Err(ConfigError(format!("Cannot parse {} as a variable. Please make sure they are all positive integers.", var_str)));
+                                return Err(ConfigError(format!("Cannot parse {var_str} as a variable. Please make sure they are all positive integers.")));
                             }
                         }
                     }
@@ -103,7 +103,7 @@ impl Config {
                 "solver" => {
                     let solver_path = Path::new(argument);
                     if !solver_path.exists() {
-                        return Err(ConfigError(format!("Cannot find solver on your filesystem at location: {}. Please ensure it exists.", argument)));
+                        return Err(ConfigError(format!("Cannot find solver on your filesystem at location: {argument}. Please ensure it exists.")));
                     }
                     if !solver_path.is_executable() {
                         return Err(ConfigError(
@@ -118,8 +118,7 @@ impl Config {
                     let cnf_path = Path::new(argument);
                     if !cnf_path.exists() {
                         return Err(ConfigError(format!(
-                            "Cannot find cnf at location {}",
-                            argument
+                            "Cannot find cnf at location {argument}."
                         )));
                     }
                     cnf = fs::read_to_string(cnf_path)?;
@@ -132,7 +131,7 @@ impl Config {
                     tmp_dir = argument.to_string();
                 }
                 "tracked metrics" => {
-                    tracked_metrics = argument.split(" ").map(str::to_string).collect();
+                    tracked_metrics = argument.split(' ').map(str::to_string).collect();
                     is_set[3] = true;
                 }
                 "evaluation metric" => {
@@ -140,7 +139,7 @@ impl Config {
                     is_set[4] = true;
                 }
                 unknown => {
-                    return Err(ConfigError(format!("Unknown config setting {}", unknown)));
+                    return Err(ConfigError(format!("Unknown config setting {unknown}")));
                 }
             }
         }
@@ -168,5 +167,61 @@ impl Config {
             tracked_metrics,
             evaluation_metric,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn good_cfg() {
+        let cfg_string = "
+            variables: 1 2 3
+            comparator: min
+            timeout: 100
+            solver: testing/test.sh
+            cnf: testing/test.cnf
+            output dir: output
+            tmp dir: tmp
+            tracked metrics: seconds ticks
+            evaluation metric: seconds";
+        assert!(
+            Config::parse_config(cfg_string).is_ok(),
+            "Config did not parse correctly"
+        );
+    }
+
+    #[test]
+    fn bad_cfgs() {
+        let cfg_string1 = "
+            variables: 1 2 3 0
+            comparator: min
+            timeout: 100
+            solver: testing/test.sh
+            cnf: testing/test.cnf
+            output dir: output
+            tmp dir: tmp
+            tracked metrics: seconds ticks
+            evaluation metric: seconds";
+        assert!(
+            Config::parse_config(cfg_string1).is_err(),
+            "Config should not parse correctly due to 0."
+        );
+
+        let cfg_string2 = "
+            variables: 1 2 3
+            comparator: mom
+            timeout: 100
+            solver: testing/test.sh
+            cnf: testing/test.cnf
+            output dir: output
+            tmp dir: tmp
+            tracked metrics: seconds ticks
+            evaluation metric: seconds";
+        assert!(
+            Config::parse_config(cfg_string2).is_err(),
+            "Config should not parse correctly due to invalid comparator."
+        );
     }
 }
