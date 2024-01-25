@@ -12,10 +12,11 @@ Satisfiability Parallelism Leveraging Ideal Tree Splits
 - tracked metrics: The list of metrics to track. See below for proper configuration details.
 - evaluation metric: The metric by which vertices should be evaluated. This must appear in tracked metrics. See below for proper configuration details.
 
-# The interface of the solver
+# The Interface of the Solver
 The last line of the solver's standard out should be of the form 'metric1: num, metric2: num, ... metricn: num'. Any metric that should be tracked in the logs should be placed in tracked metrics. Moreover, the metric used for comparison should appear in tracked metrics. For example, if you wanted to track both 'ticks' and 'seconds' and make splitting decisions based off of seconds, the last line of the stdout of the solver would need to be: 'seconds: 15.251, ticks: 15816'. Then, the config would need to contain:
 ```
 tracked metrics: seconds ticks
 evaluation metric: seconds
 ```
+An example wrapper around cadical can be found in the examples directory (TODO)
 
