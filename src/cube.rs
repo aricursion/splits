@@ -1,8 +1,8 @@
 use itertools::Itertools;
 use std::{fmt::Display, num::ParseIntError, str::FromStr};
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Cube(Vec<i32>);
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Cube(pub Vec<i32>);
 
 impl FromStr for Cube {
     type Err = ParseIntError;
@@ -18,13 +18,38 @@ impl FromStr for Cube {
 
 impl Display for Cube {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str_cube = self
-            .0
-            .iter()
-            .map(|x| x.to_string().replace('-', "n"))
-            .join("_");
+        let str_cube = self.0.iter().map(|x| x.to_string().replace('-', "n")).join("_");
 
         write!(f, "{}", str_cube)
+    }
+}
+
+impl IntoIterator for Cube {
+    type Item = i32;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl Cube {
+    // this is n^2, but faster for small vectors (like cubes)
+    // https://stackoverflow.com/a/64227550/10833363
+    pub fn subsumes(&self, Cube(cv1): &Cube) -> bool {
+        return self.0.iter().all(|var| cv1.contains(var));
+    }
+    pub fn extend(&self, var: u32) -> (Cube, Cube) {
+        let mut v1 = self.0.clone();
+        let mut v2 = self.0.clone();
+        v1.push(var as i32);
+        v2.push(-(var as i32));
+        return (Cube(v1), Cube(v2));
+    }
+
+    pub fn contains_var(&self, var: i32) -> bool {
+        return self.0.iter().any(|x| *x == var);
     }
 }
 
@@ -58,9 +83,9 @@ mod tests {
     }
 
     #[test]
-    fn random_cube_tests() {
+    fn random_cube_to_from_string_tests() {
         let mut rng = rand::thread_rng();
-        for _ in 0..1000 {
+        for _ in 0..10000 {
             let cube_size: u8 = rng.gen_range(0..20);
             let mut cube_vec = Vec::with_capacity(cube_size as usize);
             for _ in 0..cube_size {
@@ -70,14 +95,10 @@ mod tests {
                 }
                 cube_vec.push(cube_elt);
             }
-            println!("Cube vec {:?}", cube_vec);
 
             let cube = Cube(cube_vec);
             assert_eq!(cube, cube.to_string().parse::<Cube>().unwrap());
-            assert_eq!(
-                cube.to_string(),
-                cube.to_string().parse::<Cube>().unwrap().to_string()
-            );
+            assert_eq!(cube.to_string(), cube.to_string().parse::<Cube>().unwrap().to_string());
         }
     }
 }

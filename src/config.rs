@@ -1,36 +1,38 @@
+use crate::cnf::{Cnf, CnfErr};
 use is_executable::IsExecutable;
 use rayon;
-use std::fmt::{format, write};
 use std::path::Path;
 use std::{fmt, fs, io};
 
 #[derive(Debug)]
 pub enum Comparator {
-    Max,
-    Min,
+    MaxOfMin,
+    MinOfMax,
 }
+
 impl fmt::Display for Comparator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Comparator::Max => write!(f, "max"),
-            Comparator::Min => write!(f, "min"),
+            Comparator::MaxOfMin => write!(f, "max of mins"),
+            Comparator::MinOfMax => write!(f, "min of maxs"),
         }
     }
 }
-#[allow(dead_code)]
+
 #[derive(Debug)]
 pub struct Config {
-    variables: Vec<u32>,
-    comparator: Comparator,
-    timeout: u32,
-    solver: String,
-    cnf: String,
-    output_dir: String,
-    tmp_dir: String,
-    tracked_metrics: Vec<String>,
-    evaluation_metric: String,
-    thread_count: usize,
-    search_depth: u32,
+    pub variables: Vec<u32>,
+    pub comparator: Comparator,
+    pub timeout: u32,
+    pub solver: String,
+    pub cnf: Cnf,
+    pub output_dir: String,
+    pub tmp_dir: String,
+    pub tracked_metrics: Vec<String>,
+    pub evaluation_metric: String,
+    pub thread_count: usize,
+    pub search_depth: u32,
+    pub preserve_cnf: bool,
 }
 
 impl fmt::Display for Config {
@@ -40,7 +42,7 @@ impl fmt::Display for Config {
         vec_output.push(format!("Comparator: {}", self.comparator));
         vec_output.push(format!("Timeout: {}", self.timeout));
         vec_output.push(format!("Solver: {}", self.solver));
-        vec_output.push(format!("CNF: <omitted due to size>"));
+        vec_output.push(format!("CNF: <omitted>"));
         vec_output.push(format!("Output directory: {}", self.output_dir));
         vec_output.push(format!("Temporary directory: {}", self.tmp_dir));
         vec_output.push(format!("Tracked metrics: {:?}", self.tracked_metrics));
@@ -64,55 +66,42 @@ impl fmt::Display for ConfigError {
 
 impl From<io::Error> for ConfigError {
     fn from(e: io::Error) -> Self {
-        Self(format!("IO Error while parsing config: {e}"))
+        Self(format!("IO Error while seting up: {e}"))
     }
 }
 
 impl Config {
     pub fn parse_config(config_string: &str) -> Result<Self, ConfigError> {
         let trimmed_cfg_string = config_string.trim();
-        let mut variables = Vec::new();
-        let mut comparator = Comparator::Min;
-        let mut solver = String::from("");
+        let mut variable_opt = None;
+        let mut comparator = Comparator::MinOfMax;
+        let mut solver_opt = None;
         let mut timeout = 600;
-        let mut cnf = String::from("");
+        let mut cnf_opt = None;
         let mut output_dir = String::from("splits_output_directory");
         let mut tmp_dir = String::from("splits_working_directory");
-        let mut tracked_metrics = Vec::new();
-        let mut evaluation_metric = String::from("");
+        let mut tracked_metrics_opt: Option<Vec<_>> = None;
+        let mut evaluation_metric_opt = None;
+        let mut preserve_cnf = false;
 
         let mut search_depth = 1;
         let mut thread_count = rayon::max_num_threads();
 
-        let mut is_set: [bool; 5] = [false, false, false, false, false];
-
-        fn is_set_error(i: u32) -> String {
-            let out_str = match i {
-                0 => "Please provide variables in the config.",
-                1 => "Please provide the path of the solver in the config.",
-                2 => "Please provide the path of the cnf file in the config.",
-                3 => "Please provide a list of tracked metrics in the config.",
-                4 => "Please provide the evaluation metric in the config",
-                _ => panic!(),
-            };
-            return out_str.to_string();
-        }
         for line in trimmed_cfg_string.lines() {
-            let partial_parse_line = line.split(':').collect::<Vec<&str>>();
+            let partial_parse_line = line.split(':').collect::<Vec<_>>();
             let name = partial_parse_line[0].trim();
             let argument = partial_parse_line[1].trim();
 
             match name {
                 "variables" => {
+                    let mut variable_vec = Vec::new();
                     for var_str in argument.split(' ') {
                         match var_str.parse::<u32>() {
                             Ok(u) => {
                                 if u == 0 {
-                                    return Err(ConfigError(
-                                        "0 is not a valid cnf variable.".to_string(),
-                                    ));
+                                    return Err(ConfigError("0 is not a valid cnf variable.".to_string()));
                                 } else {
-                                    variables.push(u)
+                                    variable_vec.push(u)
                                 }
                             }
                             Err(_) => {
@@ -120,44 +109,48 @@ impl Config {
                             }
                         }
                     }
-                    is_set[0] = true;
+                    variable_opt = Some(variable_vec);
                 }
                 "comparator" => match argument {
-                    "min" => comparator = Comparator::Min,
-                    "max" => comparator = Comparator::Max,
+                    "minmax" => comparator = Comparator::MinOfMax,
+                    "maxmin" => comparator = Comparator::MaxOfMin,
                     _ => {
-                        return Err(ConfigError("Failed to recognize Comparison Operator. Please use either 'min' or 'max'.".to_string()));
+                        return Err(ConfigError(
+                            "Failed to recognize Comparison Operator. Please use either 'min' or 'max'.".to_string(),
+                        ));
                     }
                 },
                 "timeout" => match argument.parse::<u32>() {
                     Ok(t) => timeout = t,
                     Err(_) => {
-                        return Err(ConfigError("Failed to parse timeout. Please provide a positive integer number of seconds.".to_string()));
+                        return Err(ConfigError(
+                            "Failed to parse timeout. Please provide a positive integer number of seconds.".to_string(),
+                        ));
                     }
                 },
                 "solver" => {
                     let solver_path = Path::new(argument);
                     if !solver_path.exists() {
-                        return Err(ConfigError(format!("Cannot find solver on your filesystem at location: {argument}. Please ensure it exists.")));
+                        return Err(ConfigError(format!(
+                            "Cannot find solver on your filesystem at location: {argument}. Please ensure it exists."
+                        )));
                     }
                     if !solver_path.is_executable() {
-                        return Err(ConfigError(
-                            "Provided solver is not executable.".to_string(),
-                        ));
+                        return Err(ConfigError("Provided solver is not executable.".to_string()));
                     }
 
-                    solver = String::from(argument);
-                    is_set[1] = true;
+                    solver_opt = Some(String::from(argument));
                 }
                 "cnf" => {
                     let cnf_path = Path::new(argument);
                     if !cnf_path.exists() {
-                        return Err(ConfigError(format!(
-                            "Cannot find cnf at location {argument}."
-                        )));
+                        return Err(ConfigError(format!("Cannot find cnf at location {argument}.")));
                     }
-                    cnf = fs::read_to_string(cnf_path)?;
-                    is_set[2] = true;
+                    let cnf_string = fs::read_to_string(cnf_path)?;
+                    match cnf_string.parse::<Cnf>() {
+                        Ok(c) => cnf_opt = Some(c),
+                        Err(CnfErr(s)) => return Err(ConfigError(format!("Failed to parse CNF: {s}"))),
+                    }
                 }
                 "output dir" => {
                     output_dir = argument.to_string();
@@ -166,33 +159,29 @@ impl Config {
                     tmp_dir = argument.to_string();
                 }
                 "tracked metrics" => {
-                    tracked_metrics = argument.split(' ').map(str::to_string).collect();
-                    is_set[3] = true;
+                    tracked_metrics_opt = Some(argument.split(' ').map(str::to_string).collect());
                 }
                 "evaluation metric" => {
-                    evaluation_metric = argument.to_string();
-                    is_set[4] = true;
+                    evaluation_metric_opt = Some(argument.to_string());
                 }
-                "search depth" => match argument.parse::<u32>() {
-                    Ok(u) => {
-                        if u == 0 {
-                            return Err(ConfigError(
-                                "0 is not a valid search depth.".to_string(),
-                            ));
-                        } else {
-                            search_depth = u;
+                "search depth" => {
+                    match argument.parse::<u32>() {
+                        Ok(u) => {
+                            if u == 0 {
+                                return Err(ConfigError("0 is not a valid search depth.".to_string()));
+                            } else {
+                                search_depth = u;
+                            }
+                        }
+                        Err(_) => {
+                            return Err(ConfigError(format!("Cannot parse {argument} as a search depth. Please make sure it is a positive integers.")));
                         }
                     }
-                    Err(_) => {
-                        return Err(ConfigError(format!("Cannot parse {argument} as a search depth. Please make sure it is a positive integers.")));
-                    }
-                },
+                }
                 "thread count" => match argument.parse::<usize>() {
                     Ok(u) => {
                         if u == 0 {
-                            return Err(ConfigError(
-                                "0 is not a valid number of threads.".to_string(),
-                            ));
+                            return Err(ConfigError("0 is not a valid number of threads.".to_string()));
                         } else {
                             thread_count = u;
                         }
@@ -201,17 +190,50 @@ impl Config {
                         return Err(ConfigError(format!("Cannot parse {argument} as a number of threads. Please make sure it is a positive integers.")));
                     }
                 },
+                "preserve cnf" => match argument.parse() {
+                    Ok(b) => preserve_cnf = b,
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a boolean. Please make sure it is either 'true' or 'false'"
+                        )));
+                    }
+                },
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting {unknown}")));
                 }
             }
         }
-        for i in 0..is_set.len() {
-            if !is_set[i] {
-                let err_str = is_set_error(i as u32);
-                return Err(ConfigError(err_str));
+
+        let (variables, solver, cnf, tracked_metrics, evaluation_metric) = match (
+            variable_opt,
+            solver_opt,
+            cnf_opt,
+            tracked_metrics_opt,
+            evaluation_metric_opt,
+        ) {
+            (None, _, _, _, _) => return Err(ConfigError("Please provide variables in the config.".to_string())),
+            (_, None, _, _, _) => {
+                return Err(ConfigError(
+                    "Please provide the path of the solver in the config.".to_string(),
+                ))
             }
-        }
+            (_, _, None, _, _) => {
+                return Err(ConfigError(
+                    "Please provide the path of the cnf file in the config.".to_string(),
+                ))
+            }
+            (_, _, _, None, _) => {
+                return Err(ConfigError(
+                    "Please provide a list of tracked metrics in the config.".to_string(),
+                ))
+            }
+            (_, _, _, _, None) => {
+                return Err(ConfigError(
+                    "Please provide the evaluation metric in the config".to_string(),
+                ))
+            }
+            (Some(v), Some(s), Some(c), Some(tm), Some(em)) => (v, s, c, tm, em),
+        };
 
         if !tracked_metrics.contains(&evaluation_metric) {
             return Err(ConfigError(
@@ -231,6 +253,7 @@ impl Config {
             evaluation_metric,
             thread_count,
             search_depth,
+            preserve_cnf,
         })
     }
 }

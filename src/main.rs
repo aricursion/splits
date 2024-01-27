@@ -1,12 +1,33 @@
 mod cmd_line;
+mod cnf;
 mod config;
 mod cube;
+mod tree_gen;
 
 use crate::config::{Config, ConfigError};
+use crate::cube::Cube;
+use crate::tree_gen::tree_gen;
 use cmd_line::*;
 use std::fs;
 use std::io::{stdin, stdout, Write};
+use std::path::Path;
 use std::process::exit;
+
+fn setup_directories(config: &Config) -> Result<(), ConfigError> {
+    if !Path::exists(Path::new(&config.output_dir)) {
+        fs::create_dir(&config.output_dir)?;
+    }
+
+    if !Path::exists(Path::new(&format!("{}/logs", &config.output_dir))) {
+        fs::create_dir(&format!("{}/logs", &config.output_dir))?;
+    }
+
+    if !Path::exists(Path::new(&config.tmp_dir)) {
+        fs::create_dir(&config.tmp_dir)?;
+    }
+
+    return Ok(());
+}
 
 fn main() -> Result<(), std::io::Error> {
     let args: Args = get_args();
@@ -34,6 +55,21 @@ fn main() -> Result<(), std::io::Error> {
             exit(1);
         }
     }
+    println!("thread count: {}", config.thread_count);
+    let pool = match rayon::ThreadPoolBuilder::new().num_threads(config.thread_count).build() {
+        Ok(p) => p,
+        Err(_) => {
+            println!("Error establishing thread pool");
+            exit(1)
+        }
+    };
+
+    match setup_directories(&config) {
+        Ok(_) => (),
+        Err(e) => println!("Error while setting up directories: {}", e),
+    };
+
+    tree_gen(&config, &pool, &Cube(Vec::new()), config.timeout as f32);
 
     return Ok(());
 }

@@ -2,3 +2,6 @@
 .DS_Store
 .vscode/
 testing/
+output
+tmp
+unbalancedTreePar.py
