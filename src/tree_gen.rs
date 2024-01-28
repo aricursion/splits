@@ -1,14 +1,15 @@
-use crate::cnf;
 use crate::config::Config;
 use crate::cube::Cube;
 use itertools::Itertools;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
+use nix::unistd::getpgid;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::ThreadPool;
-use std::fs::{self, remove_file, File};
-use std::io::prelude::*;
+use std::fs::File;
+use std::io::Write;
 use std::process::Command;
-
+use std::sync::mpsc::channel;
+use std::thread::sleep;
+use std::time::Duration;
 fn done_check(config: &Config, cube_vars: &Vec<i32>) -> bool {
     return config.variables.iter().all(|x| cube_vars.contains(&((*x) as i32)));
 }
@@ -32,17 +33,26 @@ fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
     }
 }
 
-fn run_solver(config: &Config, solver: String, cnf_loc: String, cube: Cube) {
-    let output = Command::new(solver).arg(&cnf_loc).output().unwrap();
+fn run_solver(config: &Config, solver: String, cnf_loc: String, cube: Cube, timeout: f32) -> Result<String, ()> {
+    let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
-    let mut log_file = File::create(format!("{}/logs/{}.log", config.output_dir, cube)).unwrap();
-    log_file.write_all(&output.stdout).unwrap();
+    let mut child = match Command::new(solver).arg(&cnf_loc).arg(&log_file_loc).spawn() {
+        Ok(c) => c,
+        Err(_) => return Err(()),
+    };
 
-    if !config.preserve_cnf {
-        fs::remove_file(cnf_loc).unwrap();
-    }
+    let timeout_dur = Duration::from_secs_f32(timeout);
+    sleep(timeout_dur);
+    let id = child.id();
+
+    Command::new("pkill").arg(format!("-P {}", id)).output().unwrap();
+
+    Ok(log_file_loc)
 }
 
+fn parse_logs(log_file_location: &str) -> f32 {
+    return 1.0;
+}
 pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f32) {
     let ccube_vec = &ccube.0;
 
@@ -76,11 +86,18 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
             commands.push((config.solver.clone(), modified_cnf_loc.clone(), split_var_cube))
         }
     }
+
+    let (sender, receiver) = channel();
     pool.install(|| {
         commands
             .into_par_iter()
-            .for_each(|(com, cnf_loc, cube)| run_solver(config, com, cnf_loc, cube))
+            .for_each_with(sender, |s, (com, cnf_loc, cube)| {
+                s.send(run_solver(config, com, cnf_loc, cube, 5.0)).unwrap()
+            })
     });
+
+    let log_locations = receiver.iter().collect::<Vec<Result<String, ()>>>();
+    println!("{:?}", log_locations);
 }
 
 #[cfg(test)]

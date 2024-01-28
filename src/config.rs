@@ -33,6 +33,7 @@ pub struct Config {
     pub thread_count: usize,
     pub search_depth: u32,
     pub preserve_cnf: bool,
+    pub cutoff_proportion: f32,
 }
 
 impl fmt::Display for Config {
@@ -49,6 +50,8 @@ impl fmt::Display for Config {
         vec_output.push(format!("Evaluation metric: {}", self.evaluation_metric));
         vec_output.push(format!("Thread count: {}", self.thread_count));
         vec_output.push(format!("Search depth: {}", self.search_depth));
+        vec_output.push(format!("Preserve CNF: {}", self.preserve_cnf));
+        vec_output.push(format!("Cutoff proportion: {}", self.cutoff_proportion));
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -86,6 +89,7 @@ impl Config {
 
         let mut search_depth = 1;
         let mut thread_count = rayon::max_num_threads();
+        let mut cutoff_proportion = 1.0;
 
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
@@ -198,6 +202,16 @@ impl Config {
                         )));
                     }
                 },
+                "cutoff proportion" => match argument.parse() {
+                    Ok(f) => {
+                        if f <= 0.0 {
+                            return Err(ConfigError(format!("Cutoff proportion {f} needs to be a positive float.")));
+                        }
+                        cutoff_proportion = f
+                    },
+                    Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a cutoff proportion. Please make sure it is a positive float"))),
+
+                }
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting {unknown}")));
                 }
@@ -254,6 +268,7 @@ impl Config {
             thread_count,
             search_depth,
             preserve_cnf,
+            cutoff_proportion,
         })
     }
 }
