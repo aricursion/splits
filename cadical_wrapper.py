@@ -1,7 +1,6 @@
 import subprocess
 import sys
 import re
-import os
 import signal
 
 
@@ -24,21 +23,30 @@ def get_blocked(cadical_output):
 
 
 def term_handler(sig, frame):
-    # Force all the children to be killed
-    # This will kill other cadicals running
-    # But hopefully this is not an issue.
-    subprocess.run(["pkill", "cadical"])
+    p.kill()
+
+    # Write Splits data. This is optional
+    # in the sense that the SPLITS tool
+    # knows which children terminate
+    # early without reading the logs
+    f = open(sys.argv[2], "a")
+    f.write("SPLITS DATA\n")
+    f.write("Terminated\n")
     exit(0)
 
-# Install the signal handler to recieve 
+
+# Install the signal handler to recieve
 # a SIGTERM
 signal.signal(signal.SIGTERM, term_handler)
 
+p = None
 
 def run_cadical():
+    global p
     f = open(sys.argv[2], "w")
-    subprocess.run(["./testing/cadical", sys.argv[1]], stdout=f, preexec_fn=os.setsid)
+    p = subprocess.Popen(["./testing/cadical", sys.argv[1]], stdout=f)
 
+    p.wait()
     # If the process completes, we should block SIGTERM so we can
     # finish writing the file and exit normally
     signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGTERM])
@@ -56,11 +64,11 @@ def run_cadical():
     # This is the important part:
     # Printing "SPLITS DATA" and then
     # the output in json format
-    f.write("SPLITS DATA")
+    f.write("SPLITS DATA\n")
     d = dict()
     d["time"] = time
     d["blocked"] = blocked
-    f.write(f"{d}")
+    f.write(f"{d}\n")
 
 
 if __name__ == "__main__":

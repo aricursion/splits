@@ -1,15 +1,16 @@
 use crate::config::Config;
 use crate::cube::Cube;
+
 use itertools::Itertools;
-use nix::unistd::getpgid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::ThreadPool;
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
 use std::sync::mpsc::channel;
-use std::thread::sleep;
 use std::time::Duration;
+use wait_timeout::ChildExt;
+
 fn done_check(config: &Config, cube_vars: &Vec<i32>) -> bool {
     return config.variables.iter().all(|x| cube_vars.contains(&((*x) as i32)));
 }
@@ -33,26 +34,32 @@ fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
     }
 }
 
-fn run_solver(config: &Config, solver: String, cnf_loc: String, cube: Cube, timeout: f32) -> Result<String, ()> {
+fn run_solver(config: &Config, cnf_loc: String, cube: Cube, timeout: f32) -> Result<Option<String>, std::io::Error> {
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
-    let mut child = match Command::new(solver).arg(&cnf_loc).arg(&log_file_loc).spawn() {
-        Ok(c) => c,
-        Err(_) => return Err(()),
-    };
+    let mut child = Command::new(config.solver.clone())
+        .arg(&cnf_loc)
+        .arg(&log_file_loc)
+        .spawn()?;
 
     let timeout_dur = Duration::from_secs_f32(timeout);
-    sleep(timeout_dur);
+    // sleep(timeout_dur);
     let id = child.id();
 
-    Command::new("pkill").arg(format!("-P {}", id)).output().unwrap();
-
-    Ok(log_file_loc)
+    match child.wait_timeout(timeout_dur)? {
+        Some(_) => return Ok(Some(log_file_loc)),
+        None => {
+            // I'm not sure this is correct. Will this kill offset?
+            Command::new("pkill").arg(format!("-P {}", id)).output().unwrap();
+            return Ok(None);
+        }
+    }
 }
 
-fn parse_logs(log_file_location: &str) -> f32 {
+fn parse_logs(config: &Config, log_file_location: &str) -> f32 {
     return 1.0;
 }
+
 pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f32) {
     let ccube_vec = &ccube.0;
 
@@ -83,20 +90,18 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
             let mut modified_cnf_file = File::create(&modified_cnf_loc).unwrap();
 
             modified_cnf_file.write_all(modified_cnf_str.as_bytes()).unwrap();
-            commands.push((config.solver.clone(), modified_cnf_loc.clone(), split_var_cube))
+            commands.push((modified_cnf_loc.clone(), split_var_cube))
         }
     }
 
     let (sender, receiver) = channel();
     pool.install(|| {
-        commands
-            .into_par_iter()
-            .for_each_with(sender, |s, (com, cnf_loc, cube)| {
-                s.send(run_solver(config, com, cnf_loc, cube, 5.0)).unwrap()
-            })
+        commands.into_par_iter().for_each_with(sender, |s, (cnf_loc, cube)| {
+            s.send(run_solver(config, cnf_loc, cube, prev_metric)).unwrap()
+        })
     });
 
-    let log_locations = receiver.iter().collect::<Vec<Result<String, ()>>>();
+    let log_locations = receiver.iter().collect::<Vec<_>>();
     println!("{:?}", log_locations);
 }
 
