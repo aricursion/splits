@@ -1,7 +1,7 @@
 # SPLITS
 Satisfiability Parallelism Leveraging Ideal Tree Splits
 
-# Configuration Options
+# Configuration Options (TODO: Update)
 - variables: The set of variables to split on. These must be positive integers.
 - comparator (optional): Whether to take the min or max of nodes in the tree. This must be either 'min' or 'max'. By default, min is used.
 - timeout (optional): The timeout in seconds for vertices in the tree during generation. This must be a positive integer number. By default, it is 600 seconds.
