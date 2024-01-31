@@ -48,6 +48,12 @@ impl Cube {
         return (Cube(v1), Cube(v2));
     }
 
+    pub fn extend_vars(&self, vars: Vec<i32>) -> Cube {
+        let mut new = self.clone().0;
+        new.extend(vars);
+        return Cube(new);
+    }
+
     pub fn contains_var(&self, var: i32) -> bool {
         return self.0.iter().any(|x| *x == var);
     }

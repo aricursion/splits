@@ -34,6 +34,7 @@ pub struct Config {
     pub search_depth: u32,
     pub preserve_cnf: bool,
     pub cutoff_proportion: f32,
+    pub cutoff: f32,
 }
 
 impl fmt::Display for Config {
@@ -90,6 +91,7 @@ impl Config {
         let mut search_depth = 1;
         let mut thread_count = rayon::max_num_threads();
         let mut cutoff_proportion = 1.0;
+        let mut cutoff_opt = None;
 
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
@@ -212,41 +214,56 @@ impl Config {
                     Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a cutoff proportion. Please make sure it is a positive float"))),
 
                 }
+                "cutoff" => match argument.parse() {
+                    Ok(f) => {
+                        if f <= 0.0 {
+                            return Err(ConfigError(format!("Cutoff {f} needs to be a positive float.")));
+                        }
+                        cutoff_opt = Some(f);
+                    }
+                    Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a cutoff. Please make sure it is a positive float"))),
+                }
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting {unknown}")));
                 }
             }
         }
 
-        let (variables, solver, cnf, tracked_metrics, evaluation_metric) = match (
+        let (variables, solver, cnf, tracked_metrics, evaluation_metric, cutoff) = match (
             variable_opt,
             solver_opt,
             cnf_opt,
             tracked_metrics_opt,
             evaluation_metric_opt,
+            cutoff_opt
         ) {
-            (None, _, _, _, _) => return Err(ConfigError("Please provide variables in the config.".to_string())),
-            (_, None, _, _, _) => {
+            (None, _, _, _, _, _) => return Err(ConfigError("Please provide variables in the config.".to_string())),
+            (_, None, _, _, _, _) => {
                 return Err(ConfigError(
                     "Please provide the path of the solver in the config.".to_string(),
                 ))
             }
-            (_, _, None, _, _) => {
+            (_, _, None, _, _, _) => {
                 return Err(ConfigError(
                     "Please provide the path of the cnf file in the config.".to_string(),
                 ))
             }
-            (_, _, _, None, _) => {
+            (_, _, _, None, _, _) => {
                 return Err(ConfigError(
                     "Please provide a list of tracked metrics in the config.".to_string(),
                 ))
             }
-            (_, _, _, _, None) => {
+            (_, _, _, _, None, _) => {
                 return Err(ConfigError(
                     "Please provide the evaluation metric in the config".to_string(),
                 ))
             }
-            (Some(v), Some(s), Some(c), Some(tm), Some(em)) => (v, s, c, tm, em),
+            (_, _, _, _, _, None) => {
+                return Err(ConfigError(
+                    "Please make sure there is a cutoff in the config".to_string(),
+                ))
+            }
+            (Some(v), Some(s), Some(c), Some(tm), Some(em), Some(ct)) => (v, s, c, tm, em, ct),
         };
 
         if !tracked_metrics.contains(&evaluation_metric) {
@@ -269,6 +286,7 @@ impl Config {
             search_depth,
             preserve_cnf,
             cutoff_proportion,
+            cutoff
         })
     }
 }

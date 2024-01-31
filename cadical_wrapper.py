@@ -68,7 +68,7 @@ def run_cadical():
     d = dict()
     d["time"] = time
     d["blocked"] = blocked
-    f.write(f"{d}\n")
+    f.write(f"{d}\n".replace("'", '"'))
 
 
 if __name__ == "__main__":

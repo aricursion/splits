@@ -7,13 +7,13 @@ mod tree_gen;
 use crate::config::{Config, ConfigError};
 use crate::cube::Cube;
 use crate::tree_gen::tree_gen;
-use cmd_line::*;
-use std::fs;
+use cmd_line::get_args;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
 use std::process::exit;
+use std::{fs, io};
 
-fn setup_directories(config: &Config) -> Result<(), ConfigError> {
+fn setup_directories(config: &Config) -> Result<(), io::Error> {
     if !Path::exists(Path::new(&config.output_dir)) {
         fs::create_dir(&config.output_dir)?;
     }
@@ -25,12 +25,11 @@ fn setup_directories(config: &Config) -> Result<(), ConfigError> {
     if !Path::exists(Path::new(&config.tmp_dir)) {
         fs::create_dir(&config.tmp_dir)?;
     }
-
     return Ok(());
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let args: Args = get_args();
+    let args = get_args();
     let config_string = fs::read_to_string(args.config_file)?;
 
     let config = match Config::parse_config(&config_string) {
@@ -47,7 +46,7 @@ fn main() -> Result<(), std::io::Error> {
         println!("Be aware that this program will overwrite data in the temporary directory and output directory.");
         print!("Please confirm that this config is correct (yes/y): ");
         let mut confirmation = String::new();
-        let _ = stdout().flush();
+        stdout().flush()?;
         stdin().read_line(&mut confirmation)?;
         confirmation = confirmation.trim().to_lowercase();
         if !(confirmation == "yes" || confirmation == "y") {
@@ -55,7 +54,7 @@ fn main() -> Result<(), std::io::Error> {
             exit(1);
         }
     }
-    println!("thread count: {}", config.thread_count);
+
     let pool = match rayon::ThreadPoolBuilder::new().num_threads(config.thread_count).build() {
         Ok(p) => p,
         Err(_) => {
@@ -64,12 +63,8 @@ fn main() -> Result<(), std::io::Error> {
         }
     };
 
-    match setup_directories(&config) {
-        Ok(_) => (),
-        Err(e) => println!("Error while setting up directories: {}", e),
-    };
-
-    tree_gen(&config, &pool, &Cube(Vec::new()), config.timeout as f32);
+    setup_directories(&config)?;
+    tree_gen(&config, &pool, &Cube(Vec::new()), config.timeout as f32)?;
 
     return Ok(());
 }
