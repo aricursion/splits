@@ -18,13 +18,19 @@ Satisfiability Parallelism Leveraging Ideal Tree Splits
 - **cutoff proportion (optional)**: A float p between 0 and 1 representing the minimum "percentage improvement" the next layer must make to be considered valid. The default is 1 meaning any improvement is considered valid.
 - **cutoff**: The value at which metrics should stop their search.
 
-# The Interface of the Solver
-The last line of the solver's standard out should be of the form 'metric1: num, metric2: num, ... metricn: num'. Any metric that should be tracked in the logs should be placed in tracked metrics. Moreover, the metric used for comparison should appear in tracked metrics. For example, if you wanted to track both 'ticks' and 'seconds' and make splitting decisions based off of seconds, the last line of the stdout of the solver would need to be: 'seconds: 15.251, ticks: 15816'. Then, the config would need to contain:
+# The Interface of the Solver and Tracking Metrics
+The last line of the solver's standard out should be of the form `metric1: num, metric2: num, ... metricn: num`. Any metric that should be tracked in the logs should be placed in `tracked metrics`. Moreover, the metric used for comparison, the `evaluation metric`, should appear in `tracked metrics`. For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of seconds, the last line of the stdout of the solver would need to be: 'time: 15.251, ticks: 15816'. Then, the config would need to contain:
 ```
-tracked metrics: seconds ticks
-evaluation metric: seconds
+tracked metrics: time ticks
+evaluation metric: time
 ```
 An example wrapper around cadical can be found in the examples directory
 
+## "time"
+For now the metric "time" has a special meaning. In particular, it is the only metric that is evaluated "greedily" in the sense that solvers that take longer than the previous iteration can be cutoff early. In order to get this behavior, make sure the evaluation metric is "time".
+
+# Note about Storage
+Because programming is hard and I don't really know how syscalls work, the running storage footprint is fairly large. In particular, even if you don't store logs or CNFS, at each layer in the tree there is a chance they will only get cleaned up at the end. This is probably not an issue, but if you have very high `search depth` (> 4) and lots of `variables`, make sure you have at least a few gigabytes of storage availible just in case. I haven't measured this, and this is probably overkill, and I should probably fix this, but I'm putting a warning here for now.
+
 # Decisions to be made
-- Currently the way that the solver function works is that if "time" is the metric then the solvers it spawns can run at most "time" seconds. Otherwise they can do at most `config.timeout` seconds. I'm not sure this is a good choice. Even if "time" isn't the main metric, it's unlikely you want to consider instances which take much longer than the previous one. But then should I require "time" to be tracked? 
+- Currently the way that the solver function works is that if "time" is the metric then the solvers it spawns can run at most "time" seconds. Otherwise they can do at most `config.timeout` seconds. I'm not sure this is a good choice. Even if "time" isn't the main metric, it's unlikely you want to consider instances which take much longer than the previous one. But then should I require "time" to be tracked? Also, there is no reason someone should pick "time" over "seconds" or any other word.

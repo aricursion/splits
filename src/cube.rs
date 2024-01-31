@@ -34,6 +34,7 @@ impl IntoIterator for Cube {
     }
 }
 
+#[allow(dead_code)]
 impl Cube {
     // this is n^2, but faster for small vectors (like cubes)
     // https://stackoverflow.com/a/64227550/10833363
