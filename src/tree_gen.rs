@@ -93,14 +93,19 @@ fn compare(
     return nice_candidates.reduce(cmp_helper);
 }
 
-fn run_solver(config: &Config, cnf_loc: String, cube: Cube, timeout: f32) -> Result<Option<String>, io::Error> {
+fn run_solver(config: &Config, cnf_loc: String, cube: Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
     let mut child = Command::new(config.solver.clone())
         .args([&cnf_loc, &log_file_loc])
         .spawn()?;
 
-    let timeout_dur = Duration::from_secs_f32(timeout);
+    let timeout_dur;
+    if config.evaluation_metric == "time" {
+        timeout_dur = Duration::from_secs_f32(prev_time);
+    } else {
+        timeout_dur = Duration::from_secs(config.timeout as u64);
+    }
     // sleep(timeout_dur);
     let id = child.id();
 
@@ -138,12 +143,19 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
         return Ok(());
     }
 
-    //TODO make this get maximal in the number of vaid variables
+    let num_valid_split_vars = config.variables.len()
+        - ccube
+            .0
+            .iter()
+            .filter(|x| config.variables.contains(&(x.abs() as u32)))
+            .count();
+
+    println!("num_valid_split {num_valid_split_vars}");
     let split_var_vecs = config
         .variables
         .clone()
         .into_iter()
-        .combinations(config.search_depth as usize)
+        .combinations(usize::min(num_valid_split_vars, config.search_depth as usize))
         .collect::<Vec<Vec<u32>>>();
 
     let mut commands = Vec::new();
@@ -167,6 +179,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
     }
 
     let (sender, receiver) = channel();
+
     pool.install(|| {
         commands.into_par_iter().for_each_with(sender, |s, (cnf_loc, cube)| {
             s.send((cube.clone(), run_solver(config, cnf_loc, cube, prev_metric)))
@@ -230,7 +243,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
         fs::remove_dir_all(format!("{}/logs", config.output_dir))?;
         fs::create_dir(format!("{}/logs", config.output_dir))?;
     }
-    
+
     match best_vec {
         Some(rec_call_vecs) => {
             for v in rec_call_vecs {

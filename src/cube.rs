@@ -57,6 +57,7 @@ impl Cube {
     pub fn contains_var(&self, var: i32) -> bool {
         return self.0.iter().any(|x| *x == var);
     }
+    
 }
 
 #[cfg(test)]
