@@ -17,7 +17,10 @@ use std::time::Duration;
 use wait_timeout::ChildExt;
 
 fn done_check(config: &Config, cube_vars: &Vec<i32>) -> bool {
-    return config.variables.iter().all(|x| cube_vars.contains(&((*x) as i32)));
+    return config
+        .variables
+        .iter()
+        .all(|x| cube_vars.contains(&(x.clone() as i32)) || cube_vars.contains(&(-(x.clone() as i32))));
 }
 
 // this destroys v
@@ -128,7 +131,7 @@ fn run_solver(config: &Config, cnf_loc: String, cube: Cube, prev_time: f32) -> R
 fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<String, f32>), io::Error> {
     let mut log_file = File::open(log_file_location)?;
     let mut lines = String::new();
-    let _ = log_file.read_to_string(&mut lines);
+    log_file.read_to_string(&mut lines)?;
     let json_str = *lines.split("SPLITS DATA").collect::<Vec<_>>().last().unwrap();
 
     let json: HashMap<String, f32> = serde_json::from_str(json_str.trim())?;
@@ -150,12 +153,13 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
             .filter(|x| config.variables.contains(&(x.abs() as u32)))
             .count();
 
-    println!("num_valid_split {num_valid_split_vars}");
+    let search_depth = usize::min(num_valid_split_vars, config.search_depth as usize);
+
     let split_var_vecs = config
         .variables
         .clone()
         .into_iter()
-        .combinations(usize::min(num_valid_split_vars, config.search_depth as usize))
+        .combinations(search_depth)
         .collect::<Vec<Vec<u32>>>();
 
     let mut commands = Vec::new();
@@ -168,7 +172,8 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
         }
         let split_vars_hc = hyper_vec(&mut split_var_vec.clone());
         for split_var_comb in split_vars_hc {
-            let split_var_cube = Cube(split_var_comb);
+            let split_var_cube = ccube.extend_vars(split_var_comb);
+            // println!("split_var_cue: {}", split_var_cube);
             let modified_cnf_str = config.cnf.extend_cube_str(&split_var_cube);
             let modified_cnf_loc = format!("{}/{}.cnf", config.tmp_dir, &split_var_cube);
             let mut modified_cnf_file = File::create(&modified_cnf_loc)?;
@@ -197,6 +202,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
         .open(format!("{}/all.log", config.output_dir))?;
 
     for (cube, log_loc) in solver_results {
+        // println!("Writing {cube} to all.log");
         let eval_met = match log_loc {
             Ok(Some(log_loc)) => {
                 let (eval_met, all_met) = parse_logs(config, &log_loc)?;
@@ -214,13 +220,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
             }
         };
 
-        let class = cube
-            .0
-            .iter()
-            .rev()
-            .take(config.search_depth as usize)
-            .map(|x| x.abs_diff(0))
-            .collect();
+        let class = cube.0.iter().rev().take(search_depth).map(|x| x.abs_diff(0)).collect();
 
         match hm_results.entry(class) {
             Entry::Occupied(mut v) => {
@@ -245,18 +245,22 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
     }
 
     match best_vec {
-        Some(rec_call_vecs) => {
-            for v in rec_call_vecs {
-                best_log_file.write(&format!("{}: {:?}\n", &ccube.extend_vars(v.0.clone()), v.1).as_bytes())?;
+        Some(best_vecs) => {
+            // println!("Best vecs: {:?}", best_vecs);
+            for v in best_vecs {
+                let extension_vars = v.0.into_iter().rev().take(search_depth).collect::<Vec<_>>();
+                let new_ccube = ccube.extend_vars(extension_vars.clone());
+                // println!("Calling with new cube: {new_ccube}");
+                best_log_file.write(&format!("{}: {:?}\n", &new_ccube, v.1).as_bytes())?;
                 match config.comparator {
                     MaxOfMin => {
                         if v.1 < config.cutoff {
-                            tree_gen(config, pool, &ccube.extend_vars(v.0), v.1)?
+                            tree_gen(config, pool, &new_ccube, v.1)?
                         }
                     }
                     MinOfMax => {
                         if v.1 > config.cutoff {
-                            tree_gen(config, pool, &ccube.extend_vars(v.0), v.1)?
+                            tree_gen(config, pool, &new_ccube, v.1)?
                         }
                     }
                 }

@@ -1,8 +1,10 @@
+mod clause;
 mod cmd_line;
 mod cnf;
 mod config;
 mod cube;
 mod tree_gen;
+mod wcnf;
 
 use crate::config::{Config, ConfigError};
 use crate::cube::Cube;

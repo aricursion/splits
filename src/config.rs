@@ -1,13 +1,47 @@
-use crate::cnf::{Cnf, CnfErr};
+use crate::cnf::Cnf;
+use crate::cube::Cube;
+use crate::wcnf::Wcnf;
 use is_executable::IsExecutable;
 use rayon;
 use std::path::Path;
+use std::str::FromStr;
 use std::{fmt, fs, io};
 
 #[derive(Debug)]
 pub enum Comparator {
     MaxOfMin,
     MinOfMax,
+}
+
+#[derive(Debug)]
+pub enum SatType {
+    Cnf(Cnf),
+    Wcnf(Wcnf),
+}
+
+impl SatType {
+    pub fn extend_cube_str(&self, cube: &Cube) -> String {
+        match self {
+            SatType::Cnf(c) => c.extend_cube_str(cube),
+            SatType::Wcnf(w) => w.extend_cube_str(cube),
+        }
+    }
+}
+
+pub struct SatTypeError(pub String);
+
+impl FromStr for SatType {
+    type Err = SatTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse::<Cnf>() {
+            Ok(c) => return Ok(SatType::Cnf(c)),
+            Err(_) => match s.parse::<Wcnf>() {
+                Ok(wcnf) => Ok(SatType::Wcnf(wcnf)),
+                Err(_) => Err(SatTypeError(format!("Failed to parse string as CNF or WCNF"))),
+            },
+        }
+    }
 }
 
 impl fmt::Display for Comparator {
@@ -25,7 +59,7 @@ pub struct Config {
     pub comparator: Comparator,
     pub timeout: u32,
     pub solver: String,
-    pub cnf: Cnf,
+    pub cnf: SatType,
     pub output_dir: String,
     pub tmp_dir: String,
     pub tracked_metrics: Vec<String>,
@@ -56,7 +90,6 @@ impl fmt::Display for Config {
         vec_output.push(format!("Cutoff proportion: {}", self.cutoff_proportion));
         vec_output.push(format!("Cutoff: {}", self.cutoff));
         vec_output.push(format!("Preserve Logs: {}", self.preserve_logs));
-
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -158,9 +191,9 @@ impl Config {
                         return Err(ConfigError(format!("Cannot find cnf at location {argument}.")));
                     }
                     let cnf_string = fs::read_to_string(cnf_path)?;
-                    match cnf_string.parse::<Cnf>() {
-                        Ok(c) => cnf_opt = Some(c),
-                        Err(CnfErr(s)) => return Err(ConfigError(format!("Failed to parse CNF: {s}"))),
+                    match cnf_string.parse::<SatType>() {
+                        Ok(s) => cnf_opt = Some(s),
+                        Err(SatTypeError(s)) => return Err(ConfigError(format!("Failed to parse: {s}"))),
                     }
                 }
                 "output dir" => {
@@ -212,13 +245,18 @@ impl Config {
                 "cutoff proportion" => match argument.parse() {
                     Ok(f) => {
                         if f <= 0.0 {
-                            return Err(ConfigError(format!("Cutoff proportion {f} needs to be a positive float.")));
+                            return Err(ConfigError(format!(
+                                "Cutoff proportion {f} needs to be a positive float."
+                            )));
                         }
                         cutoff_proportion = f
-                    },
-                    Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a cutoff proportion. Please make sure it is a positive float"))),
-
-                }
+                    }
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a cutoff proportion. Please make sure it is a positive float"
+                        )))
+                    }
+                },
                 "cutoff" => match argument.parse() {
                     Ok(f) => {
                         if f <= 0.0 {
@@ -226,14 +264,22 @@ impl Config {
                         }
                         cutoff_opt = Some(f);
                     }
-                    Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a cutoff. Please make sure it is a positive float"))),
-                }
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a cutoff. Please make sure it is a positive float"
+                        )))
+                    }
+                },
                 "preserve logs" => match argument.parse() {
                     Ok(b) => {
                         preserve_logs = b;
                     }
-                    Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a boolean for preserving logs."))),
-                }
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a boolean for preserving logs."
+                        )))
+                    }
+                },
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting {unknown}")));
                 }
@@ -246,7 +292,7 @@ impl Config {
             cnf_opt,
             tracked_metrics_opt,
             evaluation_metric_opt,
-            cutoff_opt
+            cutoff_opt,
         ) {
             (None, _, _, _, _, _) => return Err(ConfigError("Please provide variables in the config.".to_string())),
             (_, None, _, _, _, _) => {
@@ -298,7 +344,7 @@ impl Config {
             preserve_cnf,
             cutoff_proportion,
             cutoff,
-            preserve_logs
+            preserve_logs,
         })
     }
 }

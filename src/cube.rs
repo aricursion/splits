@@ -50,15 +50,14 @@ impl Cube {
     }
 
     pub fn extend_vars(&self, vars: Vec<i32>) -> Cube {
-        let mut new = self.clone().0;
-        new.extend(vars);
-        return Cube(new);
+        let mut new_vec = self.0.clone();
+        new_vec.extend(vars);
+        return Cube(new_vec);
     }
 
     pub fn contains_var(&self, var: i32) -> bool {
         return self.0.iter().any(|x| *x == var);
     }
-    
 }
 
 #[cfg(test)]

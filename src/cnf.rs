@@ -2,10 +2,8 @@ use itertools::Itertools;
 use std::fmt::Display;
 use std::str::FromStr;
 
+use crate::clause::Clause;
 use crate::cube::Cube;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Clause(Vec<i32>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CnfErr(pub String);
@@ -21,8 +19,7 @@ impl Display for Cnf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut output_str = format!("p cnf {} {}\n", self.num_vars, self.num_clauses);
         for Clause(v) in &self.clauses {
-            output_str.push_str(&v.iter().map(|x| x.to_string()).join(" "));
-            output_str.push_str(" 0\n");
+            output_str.push_str(&format!("{} 0\n", &v.iter().map(|x| x.to_string()).join(" ")));
         }
         write!(f, "{}", output_str.trim_start())
     }
@@ -59,6 +56,9 @@ impl FromStr for Cnf {
             if line.contains("cnf") {
                 //first line
                 let elts = line.split(" ").collect::<Vec<&str>>();
+                if elts[1] != "cnf" {
+                    return Err(CnfErr("Header not formatted correctly".to_string()));
+                }
                 match elts[2].parse::<u32>() {
                     Ok(x) => cnf.num_vars = x,
                     Err(_) => return Err(CnfErr("Failed to parse number of variables".to_string())),
