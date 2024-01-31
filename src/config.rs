@@ -35,6 +35,7 @@ pub struct Config {
     pub preserve_cnf: bool,
     pub cutoff_proportion: f32,
     pub cutoff: f32,
+    pub preserve_logs: bool,
 }
 
 impl fmt::Display for Config {
@@ -53,6 +54,9 @@ impl fmt::Display for Config {
         vec_output.push(format!("Search depth: {}", self.search_depth));
         vec_output.push(format!("Preserve CNF: {}", self.preserve_cnf));
         vec_output.push(format!("Cutoff proportion: {}", self.cutoff_proportion));
+        vec_output.push(format!("Cutoff: {}", self.cutoff));
+        vec_output.push(format!("Preserve Logs: {}", self.preserve_logs));
+
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -87,6 +91,7 @@ impl Config {
         let mut tracked_metrics_opt: Option<Vec<_>> = None;
         let mut evaluation_metric_opt = None;
         let mut preserve_cnf = false;
+        let mut preserve_logs = true;
 
         let mut search_depth = 1;
         let mut thread_count = rayon::max_num_threads();
@@ -223,6 +228,12 @@ impl Config {
                     }
                     Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a cutoff. Please make sure it is a positive float"))),
                 }
+                "preserve logs" => match argument.parse() {
+                    Ok(b) => {
+                        preserve_logs = b;
+                    }
+                    Err(_) => return Err(ConfigError(format!("Cannot parse {argument} as a boolean for preserving logs."))),
+                }
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting {unknown}")));
                 }
@@ -286,7 +297,8 @@ impl Config {
             search_depth,
             preserve_cnf,
             cutoff_proportion,
-            cutoff
+            cutoff,
+            preserve_logs
         })
     }
 }

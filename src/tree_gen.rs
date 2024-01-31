@@ -226,6 +226,11 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
         .create(true)
         .open(format!("{}/best.log", config.output_dir))?;
 
+    if !config.preserve_logs {
+        fs::remove_dir_all(format!("{}/logs", config.output_dir))?;
+        fs::create_dir(format!("{}/logs", config.output_dir))?;
+    }
+    
     match best_vec {
         Some(rec_call_vecs) => {
             for v in rec_call_vecs {
