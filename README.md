@@ -16,7 +16,7 @@ Satisfiability Parallelism Leveraging Ideal Tree Splits
 - **preserve cnf (optional)**: A boolean value whether the generated CNFs should be saved. This can be very costly on storage for large experiments. The default is false.
 - **preserve logs (optional)**: A boolean value whether to store the logs of individual cube trials. The default is true.
 - **cutoff proportion (optional)**: A float p between 0 and 1 representing the minimum "percentage improvement" the next layer must make to be considered valid. The default is 1 meaning any improvement is considered valid.
-- **cutoff (optional)**: The value at which metrics should stop their search. The default is 1 meaning that the search will continue until improvement is no longer possible.
+- **cutoff**: The value at which metrics should stop their search.
 
 # The Interface of the Solver
 The last line of the solver's standard out should be of the form 'metric1: num, metric2: num, ... metricn: num'. Any metric that should be tracked in the logs should be placed in tracked metrics. Moreover, the metric used for comparison should appear in tracked metrics. For example, if you wanted to track both 'ticks' and 'seconds' and make splitting decisions based off of seconds, the last line of the stdout of the solver would need to be: 'seconds: 15.251, ticks: 15816'. Then, the config would need to contain:
@@ -24,7 +24,7 @@ The last line of the solver's standard out should be of the form 'metric1: num, 
 tracked metrics: seconds ticks
 evaluation metric: seconds
 ```
-An example wrapper around cadical can be found in the examples directory (TODO)
+An example wrapper around cadical can be found in the examples directory
 
 # Decisions to be made
 - Currently the way that the solver function works is that if "time" is the metric then the solvers it spawns can run at most "time" seconds. Otherwise they can do at most `config.timeout` seconds. I'm not sure this is a good choice. Even if "time" isn't the main metric, it's unlikely you want to consider instances which take much longer than the previous one. But then should I require "time" to be tracked? 
