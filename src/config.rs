@@ -62,7 +62,6 @@ pub struct Config {
     pub cnf: SatType,
     pub output_dir: String,
     pub tmp_dir: String,
-    pub tracked_metrics: Vec<String>,
     pub evaluation_metric: String,
     pub thread_count: usize,
     pub search_depth: u32,
@@ -80,12 +79,11 @@ impl fmt::Display for Config {
         vec_output.push(format!("            Timeout: {}", self.timeout));
         vec_output.push(format!("             Solver: {}", self.solver));
         match self.cnf {
-            SatType::Cnf(_) => vec_output.push("            SAT Type: CNF".to_string()),
-            SatType::Wcnf(_) => vec_output.push("           SAT Type: WCNF".to_string()),
+            SatType::Cnf(_) => vec_output.push("           SAT Type: CNF".to_string()),
+            SatType::Wcnf(_) => vec_output.push("          SAT Type: WCNF".to_string()),
         }
         vec_output.push(format!("   Output directory: {}", self.output_dir));
         vec_output.push(format!("Temporary directory: {}", self.tmp_dir));
-        vec_output.push(format!("    Tracked metrics: {:?}", self.tracked_metrics));
         vec_output.push(format!("  Evaluation metric: {}", self.evaluation_metric));
         vec_output.push(format!("       Thread count: {}", self.thread_count));
         vec_output.push(format!("       Search depth: {}", self.search_depth));
@@ -124,7 +122,6 @@ impl Config {
         let mut cnf_opt = None;
         let mut output_dir = String::from("splits_output_directory");
         let mut tmp_dir = String::from("splits_working_directory");
-        let mut tracked_metrics_opt: Option<Vec<_>> = None;
         let mut evaluation_metric_opt = None;
         let mut preserve_cnf = false;
         let mut preserve_logs = true;
@@ -177,7 +174,7 @@ impl Config {
                     }
                     multitree_variables = Some(variable_vec);
                 }
-                
+
                 "comparator" => match argument {
                     "minmax" => comparator = Comparator::MinOfMax,
                     "maxmin" => comparator = Comparator::MaxOfMin,
@@ -224,9 +221,6 @@ impl Config {
                 }
                 "tmp dir" => {
                     tmp_dir = argument.to_string();
-                }
-                "tracked metrics" => {
-                    tracked_metrics_opt = Some(argument.split(' ').map(str::to_string).collect());
                 }
                 "evaluation metric" => {
                     evaluation_metric_opt = Some(argument.to_string());
@@ -304,53 +298,42 @@ impl Config {
                     }
                 },
                 unknown => {
-                    return Err(ConfigError(format!("Unknown config setting {unknown}")));
+                    return Err(ConfigError(format!("Unknown config setting: {unknown}")));
                 }
             }
         }
 
-        let (variables, solver, cnf, tracked_metrics, evaluation_metric, cutoff) = match (
-            variable_opt,
-            solver_opt,
-            cnf_opt,
-            tracked_metrics_opt,
-            evaluation_metric_opt,
-            cutoff_opt,
-        ) {
-            (None, _, _, _, _, _) => return Err(ConfigError("Please provide variables in the config.".to_string())),
-            (_, None, _, _, _, _) => {
-                return Err(ConfigError(
-                    "Please provide the path of the solver in the config.".to_string(),
-                ))
-            }
-            (_, _, None, _, _, _) => {
-                return Err(ConfigError(
-                    "Please provide the path of the cnf file in the config.".to_string(),
-                ))
-            }
-            (_, _, _, None, _, _) => {
-                return Err(ConfigError(
-                    "Please provide a list of tracked metrics in the config.".to_string(),
-                ))
-            }
-            (_, _, _, _, None, _) => {
-                return Err(ConfigError(
-                    "Please provide the evaluation metric in the config".to_string(),
-                ))
-            }
-            (_, _, _, _, _, None) => {
-                return Err(ConfigError(
-                    "Please make sure there is a cutoff in the config".to_string(),
-                ))
-            }
-            (Some(v), Some(s), Some(c), Some(tm), Some(em), Some(ct)) => (v, s, c, tm, em, ct),
-        };
+        let (variables, solver, cnf, evaluation_metric, cutoff) =
+            match (variable_opt, solver_opt, cnf_opt, evaluation_metric_opt, cutoff_opt) {
+                (None, _, _, _, _) => return Err(ConfigError("Please provide variables in the config.".to_string())),
+                (_, None, _, _, _) => {
+                    return Err(ConfigError(
+                        "Please provide the path of the solver in the config.".to_string(),
+                    ))
+                }
+                (_, _, None, _, _) => {
+                    return Err(ConfigError(
+                        "Please provide the path of the cnf file in the config.".to_string(),
+                    ))
+                }
+                (_, _, _, None, _) => {
+                    return Err(ConfigError(
+                        "Please provide the evaluation metric in the config".to_string(),
+                    ))
+                }
+                (_, _, _, _, None) => {
+                    return Err(ConfigError(
+                        "Please make sure there is a cutoff in the config".to_string(),
+                    ))
+                }
+                (Some(v), Some(s), Some(c), Some(em), Some(ct)) => (v, s, c, em, ct),
+            };
 
-        if !tracked_metrics.contains(&evaluation_metric) {
-            return Err(ConfigError(
-                "The evaluation metric must appear in the set of tracked metrics.".to_string(),
-            ));
-        }
+        // if !tracked_metrics.contains(&evaluation_metric) {
+        //     return Err(ConfigError(
+        //         "The evaluation metric must appear in the set of tracked metrics.".to_string(),
+        //     ));
+        // }
 
         Ok(Config {
             variables,
@@ -361,7 +344,6 @@ impl Config {
             cnf,
             output_dir,
             tmp_dir,
-            tracked_metrics,
             evaluation_metric,
             thread_count,
             search_depth,

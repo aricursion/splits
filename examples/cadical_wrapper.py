@@ -12,12 +12,62 @@ def get_time(cadical_output):
     return time
 
 
-def get_blocked(cadical_output):
+def get_conflicts(cadical_output):
     lookfor1 = "--- [ statistics ] -----------------------"
     relevant = cadical_output.split(lookfor1)[-1]
 
     lookfor2 = "conflicts:"
     lookfor3 = "per second"
+    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    return float(nums.split(" ")[0])
+
+
+def get_blocked(cadical_output):
+    lookfor1 = "--- [ statistics ] -----------------------"
+    relevant = cadical_output.split(lookfor1)[-1]
+
+    lookfor2 = "blocked:"
+    lookfor3 = "of irredundant"
+    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    return float(nums.split(" ")[0])
+
+
+def get_decisions(cadical_output):
+    lookfor1 = "--- [ statistics ] -----------------------"
+    relevant = cadical_output.split(lookfor1)[-1]
+
+    lookfor2 = "decisions:"
+    lookfor3 = "per second"
+    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    return float(nums.split(" ")[0])
+
+
+def get_learned(cadical_output):
+    lookfor1 = "--- [ statistics ] -----------------------"
+    relevant = cadical_output.split(lookfor1)[-1]
+
+    lookfor2 = "c learned:"
+    lookfor3 = "per conflict"
+    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    return float(nums.split(" ")[0])
+
+
+def get_props(cadical_output):
+    lookfor1 = "--- [ statistics ] -----------------------"
+    relevant = cadical_output.split(lookfor1)[-1]
+
+    lookfor2 = "propagations:"
+    lookfor3 = "per second"
+    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    return float(nums.split(" ")[0])
+
+
+def get_subsumed(cadical_output):
+    lookfor1 = "--- [ statistics ] -----------------------"
+    relevant = cadical_output.split(lookfor1)[-1]
+
+    lookfor2 = "subsumed:"
+    lookfor3 = "of all clauses"
     nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
@@ -40,6 +90,7 @@ def term_handler(sig, frame):
 signal.signal(signal.SIGTERM, term_handler)
 
 p = None
+
 
 def run_cadical():
     global p
@@ -69,6 +120,12 @@ def run_cadical():
     d = dict()
     d["time"] = time
     d["blocked"] = blocked
+    d["subsumed"] = get_subsumed(output)
+    d["propogations"] = get_props(output)
+    d["learned"] = get_learned(output)
+    d["decisions"] = get_decisions(output)
+    d["conflicts"] = get_conflicts(output)
+
     f.write(f"{d}\n".replace("'", '"'))
 
 

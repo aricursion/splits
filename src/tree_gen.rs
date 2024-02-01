@@ -132,7 +132,13 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
 
     let json: HashMap<String, f32> = serde_json::from_str(json_str.trim())?;
 
-    Ok((*json.get(&config.evaluation_metric).unwrap(), json))
+    match json.get(&config.evaluation_metric) {
+        Some(x) => Ok((*x, json)),
+        None => {
+            println!("The evaluation metric did not appear in the output of the solver (or something else went wrong, but it's probably thatf). Please make sure it appears exactly as written in the config.");
+            std::process::exit(1)
+        }
+    }
 }
 
 pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f32) -> Result<(), io::Error> {

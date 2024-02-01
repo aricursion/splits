@@ -18,7 +18,6 @@ fn parse_leaf_cubes(log_loc: &str) -> Result<Vec<Cube>, io::Error> {
     }
 
     let mut leaf_cubes = Vec::new();
-    println!("{:?}", cubes);
     for cube in &cubes {
         let mut leaf_cube = true;
         for check_cube in &cubes {
