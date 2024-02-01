@@ -1,12 +1,17 @@
 # SPLITS
 Satisfiability Parallelism Leveraging Ideal Tree Splits
 
+# Usage
+In order to run SPLITS, just do `./splits -c config.cfg` where `config.cfg` is a valid config. See Configuration Options below for details, and `examples/` for some example configurations. Besides setting up the config for your use case, if you want to use `cadical` or `maxcdcl`, just ensure that in the scripts `cadical_wrapper.py` or `maxcdcl_wrapper.py` the `command` variable matches the location of `cadical` or `maxcdcl` on your system. Also, make sure the tracked metrics agree. 
+
+TODO: Add all metrics, and make the usage of "packaged" wrappers more seamless.
+
 # Configuration Options
 - **variables**: The set of variables to split on. These must be positive integers.
 - **comparator (optional)**: Whether to take the (min of max) or (max of min) of nodes in the tree. This must be either 'minmax' or 'maxmin'. By default, 'minmax' is used.
 - **timeout (optional)**: The timeout in seconds for vertices in the tree during generation. This must be a positive integer number. By default, it is 600 seconds.
 - **solver**: The location of the solver to be ran. It must be marked executable. See below for proper configuration details.
-- **cnf**: The location of the cnf file.
+- **(w)cnf**: The location of the (w)cnf file.
 - **output dir (optional)**: The directory that SPLITS will leave its outputs in. By default it is 'splits_output_directory'
 - **tmp dir (optional)**: The directory that SPLITS will do work in. It will be cleaned up at the end of execution if it goes normally. By default it is 'splits_working_directory'
 - **tracked metrics**: The list of metrics to track. See below for proper configuration details.
@@ -26,7 +31,7 @@ The last two line of the solver's standard out should be of the form `SPLITS DAT
 tracked metrics: time ticks
 evaluation metric: time
 ```
-An example wrapper around cadical can be found in the examples directory
+An example wrapper around cadical can be found in the `examples/` directory
 
 ## "time"
 For now the metric "time" has a special meaning. In particular, it is the only metric that is evaluated "greedily" in the sense that solvers that take longer than the previous iteration can be cutoff early. In order to get this behavior, make sure the evaluation metric is "time".
@@ -35,6 +40,8 @@ For now the metric "time" has a special meaning. In particular, it is the only m
 The wrapper must do a few things in order to work properly. The most important thing is that when it recieves a `SIGTERM`, it forwards it (or some other signal) to kill the process that it spawns. Technically you don't *have* to do this, but if you don't you are going to have a bad time.
 
 The other important thing is that when the solver finishes, it should block `SIGTERM` so it doesn't get interupted while writing logs. You also don't *have* to do this, but you could miss out on optimal splits if you don't.
+
+For more details, read the README in `examples/`
 
 # Note about Storage
 Because programming is hard and I don't really know how syscalls work, the running storage footprint is fairly large. In particular, even if you don't store logs or CNFS, at each layer in the tree there is a chance they will only get cleaned up at the end. This is probably not an issue, but if you have very high `search depth` (> 4) and lots of `variables`, make sure you have at least a few gigabytes of storage availible just in case. I haven't measured this, and this is probably overkill, and I should probably fix this, but I'm putting a warning here for now.

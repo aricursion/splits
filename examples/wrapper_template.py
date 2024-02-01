@@ -4,7 +4,7 @@ import signal
 
 
 def parse_metric(output: str) -> float:
-    pass
+    NotImplemented
 
 
 def term_handler(sig, frame):
@@ -30,7 +30,7 @@ def run_cadical():
     global p
     log_file = open(sys.argv[2], "w")
 
-    command = # fill this in
+    command = NotImplemented # fill this in
     p = subprocess.Popen([command, sys.argv[1]], stdout=log_file)
 
     p.wait()
@@ -42,7 +42,6 @@ def run_cadical():
     log_file = open(sys.argv[2], "r")
 
     output = log_file.read()
-    metric = parse_metric(output)
 
     log_file.close()
     log_file = open(sys.argv[2], "a")
@@ -54,12 +53,12 @@ def run_cadical():
     d = dict()
 
     # You can add other metrics in the exact same way
-    metric_name = # fill this in
+    metric_name = NotImplemented # fill this in
 
 
     d[metric_name] = parse_metric(output)
 
-    log_file.write(f"{d}\n")
+    log_file.write(f"{d}\n".replace("'", '"'))
 
 
 if __name__ == "__main__":

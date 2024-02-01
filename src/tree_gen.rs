@@ -23,7 +23,7 @@ fn done_check(config: &Config, cube_vars: &[i32]) -> bool {
 }
 
 // this destroys v
-fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
+pub fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
     let mut output: Vec<Vec<i32>> = Vec::new();
     match v.pop() {
         Some(x) => {

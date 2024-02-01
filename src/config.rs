@@ -55,6 +55,7 @@ impl fmt::Display for Comparator {
 #[derive(Debug)]
 pub struct Config {
     pub variables: Vec<u32>,
+    pub multitree_variables: Option<Vec<u32>>,
     pub comparator: Comparator,
     pub timeout: u32,
     pub solver: String,
@@ -127,6 +128,7 @@ impl Config {
         let mut evaluation_metric_opt = None;
         let mut preserve_cnf = false;
         let mut preserve_logs = true;
+        let mut multitree_variables = None;
 
         let mut search_depth = 1;
         let mut thread_count = rayon::current_num_threads();
@@ -157,6 +159,25 @@ impl Config {
                     }
                     variable_opt = Some(variable_vec);
                 }
+                "multitree variables" => {
+                    let mut variable_vec = Vec::new();
+                    for var_str in argument.split(' ') {
+                        match var_str.parse::<u32>() {
+                            Ok(u) => {
+                                if u == 0 {
+                                    return Err(ConfigError("0 is not a valid cnf variable.".to_string()));
+                                } else {
+                                    variable_vec.push(u)
+                                }
+                            }
+                            Err(_) => {
+                                return Err(ConfigError(format!("Cannot parse {var_str} as a variable. Please make sure they are all positive integers.")));
+                            }
+                        }
+                    }
+                    multitree_variables = Some(variable_vec);
+                }
+                
                 "comparator" => match argument {
                     "minmax" => comparator = Comparator::MinOfMax,
                     "maxmin" => comparator = Comparator::MaxOfMin,
@@ -187,7 +208,7 @@ impl Config {
 
                     solver_opt = Some(String::from(argument));
                 }
-                "cnf" => {
+                "wcnf" | "cnf" => {
                     let cnf_path = Path::new(argument);
                     if !cnf_path.exists() {
                         return Err(ConfigError(format!("Cannot find cnf at location {argument}.")));
@@ -236,7 +257,7 @@ impl Config {
                         return Err(ConfigError(format!("Cannot parse {argument} as a number of threads. Please make sure it is a positive integers.")));
                     }
                 },
-                "preserve cnf" => match argument.parse() {
+                "preserve cnf" | "preserve wcnf" => match argument.parse() {
                     Ok(b) => preserve_cnf = b,
                     Err(_) => {
                         return Err(ConfigError(format!(
@@ -333,6 +354,7 @@ impl Config {
 
         Ok(Config {
             variables,
+            multitree_variables,
             comparator,
             timeout,
             solver,

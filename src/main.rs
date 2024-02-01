@@ -12,6 +12,7 @@ use crate::cube::Cube;
 use crate::reconstruct::parse_logs;
 use crate::tree_gen::tree_gen;
 use cmd_line::get_args;
+use tree_gen::hyper_vec;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
 use std::process::exit;
@@ -36,10 +37,10 @@ fn main() -> Result<(), std::io::Error> {
     let args = get_args();
     let config_string = fs::read_to_string(args.config_file)?;
 
-    let config = match Config::parse_config(&config_string) {
+    let mut config = match Config::parse_config(&config_string) {
         Ok(c) => c,
         Err(ConfigError(s)) => {
-            println!("Config Error: {}", s);
+            println!("Config Error: {s}");
             exit(1);
         }
     };
@@ -68,11 +69,24 @@ fn main() -> Result<(), std::io::Error> {
     };
 
     setup_directories(&config)?;
-    tree_gen(&config, &pool, &Cube(Vec::new()), config.timeout as f32)?;
-    parse_logs(
-        &format!("{}/best.log", config.output_dir),
-        &format!("{}/cubes.icnf", config.output_dir),
-    )?;
+    match config.multitree_variables.clone() {
+        Some(mut multitree_vars) => {
+            let hvs = hyper_vec(&mut multitree_vars);
+            let original_output_dir = config.output_dir;
+            for v in hvs {
+                let starter_cube = Cube(v);
+                config.output_dir = format!("{}/{}", original_output_dir, &starter_cube);
+                tree_gen(&config, &pool, &starter_cube, config.timeout as f32)?;
+            }
+        }
+        None => {
+            tree_gen(&config, &pool, &Cube(Vec::new()), config.timeout as f32)?;
+            parse_logs(
+                &format!("{}/best.log", config.output_dir),
+                &format!("{}/cubes.icnf", config.output_dir),
+            )?
+        }
+    };
 
     Ok(())
 }

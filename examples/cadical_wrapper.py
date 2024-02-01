@@ -44,7 +44,8 @@ p = None
 def run_cadical():
     global p
     f = open(sys.argv[2], "w")
-    p = subprocess.Popen(["./testing/cadical", sys.argv[1]], stdout=f)
+    command = "./testing/cadical"
+    p = subprocess.Popen([command, sys.argv[1]], stdout=f)
 
     p.wait()
     # If the process completes, we should block SIGTERM so we can
