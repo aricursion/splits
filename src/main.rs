@@ -3,14 +3,14 @@ mod cmd_line;
 mod cnf;
 mod config;
 mod cube;
+mod reconstruct;
 mod tree_gen;
 mod wcnf;
-mod reconstruct;
 
 use crate::config::{Config, ConfigError};
 use crate::cube::Cube;
-use crate::tree_gen::tree_gen;
 use crate::reconstruct::parse_logs;
+use crate::tree_gen::tree_gen;
 use cmd_line::get_args;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
@@ -46,7 +46,7 @@ fn main() -> Result<(), std::io::Error> {
 
     if !args.no_confirm {
         println!("Configuration:");
-        println!("{}", config);
+        println!("{}\n", config);
         println!("Be aware that this program will overwrite data in the temporary directory and output directory.");
         print!("Please confirm that this config is correct (yes/y): ");
         let mut confirmation = String::new();
@@ -69,7 +69,10 @@ fn main() -> Result<(), std::io::Error> {
 
     setup_directories(&config)?;
     tree_gen(&config, &pool, &Cube(Vec::new()), config.timeout as f32)?;
-    parse_logs(&format!("{}/best.log", config.output_dir), &format!("{}/cubes.icnf", config.output_dir))?;
+    parse_logs(
+        &format!("{}/best.log", config.output_dir),
+        &format!("{}/cubes.icnf", config.output_dir),
+    )?;
 
     Ok(())
 }

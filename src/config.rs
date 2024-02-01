@@ -74,21 +74,24 @@ pub struct Config {
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut vec_output = Vec::with_capacity(11);
-        vec_output.push(format!("Variables: {:?}", self.variables));
-        vec_output.push(format!("Comparator: {}", self.comparator));
-        vec_output.push(format!("Timeout: {}", self.timeout));
-        vec_output.push(format!("Solver: {}", self.solver));
-        vec_output.push("CNF: <omitted>".to_string());
-        vec_output.push(format!("Output directory: {}", self.output_dir));
+        vec_output.push(format!("          Variables: {:?}", self.variables));
+        vec_output.push(format!("         Comparator: {}", self.comparator));
+        vec_output.push(format!("            Timeout: {}", self.timeout));
+        vec_output.push(format!("             Solver: {}", self.solver));
+        match self.cnf {
+            SatType::Cnf(_) => vec_output.push("            SAT Type: CNF".to_string()),
+            SatType::Wcnf(_) => vec_output.push("           SAT Type: WCNF".to_string()),
+        }
+        vec_output.push(format!("   Output directory: {}", self.output_dir));
         vec_output.push(format!("Temporary directory: {}", self.tmp_dir));
-        vec_output.push(format!("Tracked metrics: {:?}", self.tracked_metrics));
-        vec_output.push(format!("Evaluation metric: {}", self.evaluation_metric));
-        vec_output.push(format!("Thread count: {}", self.thread_count));
-        vec_output.push(format!("Search depth: {}", self.search_depth));
-        vec_output.push(format!("Preserve CNF: {}", self.preserve_cnf));
-        vec_output.push(format!("Cutoff proportion: {}", self.cutoff_proportion));
-        vec_output.push(format!("Cutoff: {}", self.cutoff));
-        vec_output.push(format!("Preserve Logs: {}", self.preserve_logs));
+        vec_output.push(format!("    Tracked metrics: {:?}", self.tracked_metrics));
+        vec_output.push(format!("  Evaluation metric: {}", self.evaluation_metric));
+        vec_output.push(format!("       Thread count: {}", self.thread_count));
+        vec_output.push(format!("       Search depth: {}", self.search_depth));
+        vec_output.push(format!("       Preserve CNF: {}", self.preserve_cnf));
+        vec_output.push(format!("  Cutoff proportion: {}", self.cutoff_proportion));
+        vec_output.push(format!("             Cutoff: {}", self.cutoff));
+        vec_output.push(format!("      Preserve Logs: {}", self.preserve_logs));
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -126,7 +129,7 @@ impl Config {
         let mut preserve_logs = true;
 
         let mut search_depth = 1;
-        let mut thread_count = rayon::max_num_threads();
+        let mut thread_count = rayon::current_num_threads();
         let mut cutoff_proportion = 1.0;
         let mut cutoff_opt = None;
 
