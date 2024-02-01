@@ -5,4 +5,5 @@ testing/
 output
 tmp
 unbalancedTreePar.py
+reconstruct-logs.py
 clean.sh

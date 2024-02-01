@@ -7,7 +7,6 @@ use crate::cube::Cube;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::ThreadPool;
-use serde_json;
 use std::collections::{hash_map::Entry, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -16,11 +15,11 @@ use std::sync::mpsc::channel;
 use std::time::Duration;
 use wait_timeout::ChildExt;
 
-fn done_check(config: &Config, cube_vars: &Vec<i32>) -> bool {
+fn done_check(config: &Config, cube_vars: &[i32]) -> bool {
     return config
         .variables
         .iter()
-        .all(|x| cube_vars.contains(&(x.clone() as i32)) || cube_vars.contains(&(-(x.clone() as i32))));
+        .all(|x| cube_vars.contains(&(*x as i32)) || cube_vars.contains(&(-(*x as i32))));
 }
 
 // this destroys v
@@ -36,9 +35,9 @@ fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
                 output.push(mini_hyper);
                 output.push(mini_hyper_copy)
             }
-            return output;
+            output
         }
-        None => return vec![vec![]],
+        None => vec![vec![]],
     }
 }
 
@@ -56,7 +55,7 @@ fn compare(
             if winning_min > chal_min {
                 return winning;
             }
-            return chal;
+            chal
         },
         MinOfMax => |winning: Vec<(Vec<i32>, f32)>, chal: Vec<(Vec<i32>, f32)>| -> Vec<(Vec<i32>, f32)> {
             let winning_max = winning.iter().map(|x| x.1).reduce(f32::max).unwrap();
@@ -64,7 +63,7 @@ fn compare(
             if winning_max < chal_max {
                 return winning;
             }
-            return chal;
+            chal
         },
     };
 
@@ -93,22 +92,21 @@ fn compare(
             .map(|v| (v.0.clone(), v.1.unwrap()))
             .collect::<Vec<_>>()
     });
-    return nice_candidates.reduce(cmp_helper);
+    nice_candidates.reduce(cmp_helper)
 }
 
-fn run_solver(config: &Config, cnf_loc: String, cube: Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
+fn run_solver(config: &Config, cnf_loc: String, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
     let mut child = Command::new(config.solver.clone())
         .args([&cnf_loc, &log_file_loc])
         .spawn()?;
 
-    let timeout_dur;
-    if config.evaluation_metric == "time" {
-        timeout_dur = Duration::from_secs_f32(prev_time);
+    let timeout_dur = if config.evaluation_metric == "time" {
+        Duration::from_secs_f32(prev_time)
     } else {
-        timeout_dur = Duration::from_secs(config.timeout as u64);
-    }
+        Duration::from_secs(config.timeout as u64)
+    };
     // sleep(timeout_dur);
     let id = child.id();
 
@@ -125,7 +123,7 @@ fn run_solver(config: &Config, cnf_loc: String, cube: Cube, prev_time: f32) -> R
         fs::remove_file(cnf_loc)?;
     }
 
-    return res;
+    res
 }
 
 fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<String, f32>), io::Error> {
@@ -136,7 +134,7 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
 
     let json: HashMap<String, f32> = serde_json::from_str(json_str.trim())?;
 
-    return Ok((*json.get(&config.evaluation_metric).unwrap(), json));
+    Ok((*json.get(&config.evaluation_metric).unwrap(), json))
 }
 
 pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f32) -> Result<(), io::Error> {
@@ -150,7 +148,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
         - ccube
             .0
             .iter()
-            .filter(|x| config.variables.contains(&(x.abs() as u32)))
+            .filter(|x| config.variables.contains(&x.unsigned_abs()))
             .count();
 
     let search_depth = usize::min(num_valid_split_vars, config.search_depth as usize);
@@ -179,7 +177,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
             let mut modified_cnf_file = File::create(&modified_cnf_loc)?;
 
             modified_cnf_file.write_all(modified_cnf_str.as_bytes())?;
-            commands.push((modified_cnf_loc.clone(), split_var_cube))
+            commands.push((modified_cnf_loc, split_var_cube))
         }
     }
 
@@ -187,8 +185,8 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
 
     pool.install(|| {
         commands.into_par_iter().for_each_with(sender, |s, (cnf_loc, cube)| {
-            s.send((cube.clone(), run_solver(config, cnf_loc, cube, prev_metric)))
-                .unwrap()
+            let res = run_solver(config, cnf_loc, &cube, prev_metric);
+            s.send((cube, res)).unwrap()
         })
     });
 
@@ -207,15 +205,15 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
             Ok(Some(log_loc)) => {
                 let (eval_met, all_met) = parse_logs(config, &log_loc)?;
 
-                all_log_file.write(&format!("{}: {:?}\n", cube, all_met).as_bytes())?;
+                all_log_file.write_all(format!("{}: {:?}\n", cube, all_met).as_bytes())?;
                 Some(eval_met)
             }
             Ok(None) => {
-                all_log_file.write(&format!("{}: Timeout\n", cube).as_bytes())?;
+                all_log_file.write_all(format!("{}: Timeout\n", cube).as_bytes())?;
                 None
             }
             Err(e) => {
-                all_log_file.write(&format!("{}: {}\n", cube, e).as_bytes())?;
+                all_log_file.write_all(format!("{}: {}\n", cube, e).as_bytes())?;
                 None
             }
         };
@@ -246,21 +244,20 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
 
     match best_vec {
         Some(best_vecs) => {
-            // println!("Best vecs: {:?}", best_vecs);
             for v in best_vecs {
                 let extension_vars = v.0.into_iter().rev().take(search_depth).collect::<Vec<_>>();
-                let new_ccube = ccube.extend_vars(extension_vars.clone());
-                // println!("Calling with new cube: {new_ccube}");
-                best_log_file.write(&format!("{}: {:?}\n", &new_ccube, v.1).as_bytes())?;
+                let new_cube = ccube.extend_vars(extension_vars);
+
+                best_log_file.write_all(format!("{}: {:?}\n", &new_cube, v.1).as_bytes())?;
                 match config.comparator {
                     MaxOfMin => {
                         if v.1 < config.cutoff {
-                            tree_gen(config, pool, &new_ccube, v.1)?
+                            tree_gen(config, pool, &new_cube, v.1)?
                         }
                     }
                     MinOfMax => {
                         if v.1 > config.cutoff {
-                            tree_gen(config, pool, &new_ccube, v.1)?
+                            tree_gen(config, pool, &new_cube, v.1)?
                         }
                     }
                 }
@@ -271,16 +268,5 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
         }
     }
 
-    return Ok(());
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hyper_test() {
-        let mut starting_cube = vec![1, 2, 3];
-        println!("{:?}", hyper_vec(&mut starting_cube));
-    }
+    Ok(())
 }

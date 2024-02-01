@@ -7,12 +7,12 @@ pub struct Cube(pub Vec<i32>);
 impl FromStr for Cube {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == "" {
+        if s.is_empty() {
             return Ok(Cube(Vec::new()));
         }
         let string_reformat = s.replace('n', "-");
         let str_cube = string_reformat.split('_');
-        return Ok(Cube(str_cube.map(|s| str::parse::<i32>(s)).try_collect()?));
+        Ok(Cube(str_cube.map(|s| s.parse()).try_collect()?))
     }
 }
 
@@ -46,13 +46,13 @@ impl Cube {
         let mut v2 = self.0.clone();
         v1.push(var as i32);
         v2.push(-(var as i32));
-        return (Cube(v1), Cube(v2));
+        (Cube(v1), Cube(v2))
     }
 
     pub fn extend_vars(&self, vars: Vec<i32>) -> Cube {
         let mut new_vec = self.0.clone();
         new_vec.extend(vars);
-        return Cube(new_vec);
+        Cube(new_vec)
     }
 
     pub fn contains_var(&self, var: i32) -> bool {
@@ -107,5 +107,13 @@ mod tests {
             assert_eq!(cube, cube.to_string().parse::<Cube>().unwrap());
             assert_eq!(cube.to_string(), cube.to_string().parse::<Cube>().unwrap().to_string());
         }
+    }
+
+    #[test]
+    fn cube_subsume_test() {
+        assert!(Cube(vec![1, 2]).subsumes(&Cube(vec![1, 2, 3])));
+        assert!(Cube(vec![1, 2]).subsumes(&Cube(vec![1, 2])));
+        assert!(!Cube(vec![-1, 2]).subsumes(&Cube(vec![1, 2])));
+        assert!(!Cube(vec![1, 2]).subsumes(&Cube(vec![-1, 2])));
     }
 }

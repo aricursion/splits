@@ -2,7 +2,6 @@ use crate::cnf::Cnf;
 use crate::cube::Cube;
 use crate::wcnf::Wcnf;
 use is_executable::IsExecutable;
-use rayon;
 use std::path::Path;
 use std::str::FromStr;
 use std::{fmt, fs, io};
@@ -35,10 +34,10 @@ impl FromStr for SatType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.parse::<Cnf>() {
-            Ok(c) => return Ok(SatType::Cnf(c)),
+            Ok(c) => Ok(SatType::Cnf(c)),
             Err(_) => match s.parse::<Wcnf>() {
                 Ok(wcnf) => Ok(SatType::Wcnf(wcnf)),
-                Err(_) => Err(SatTypeError(format!("Failed to parse string as CNF or WCNF"))),
+                Err(_) => Err(SatTypeError("Failed to parse string as CNF or WCNF".to_string())),
             },
         }
     }
@@ -79,7 +78,7 @@ impl fmt::Display for Config {
         vec_output.push(format!("Comparator: {}", self.comparator));
         vec_output.push(format!("Timeout: {}", self.timeout));
         vec_output.push(format!("Solver: {}", self.solver));
-        vec_output.push(format!("CNF: <omitted>"));
+        vec_output.push("CNF: <omitted>".to_string());
         vec_output.push(format!("Output directory: {}", self.output_dir));
         vec_output.push(format!("Temporary directory: {}", self.tmp_dir));
         vec_output.push(format!("Tracked metrics: {:?}", self.tracked_metrics));

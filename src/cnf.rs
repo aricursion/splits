@@ -30,7 +30,7 @@ impl FromStr for Cnf {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn parse_line(line: &str) -> Result<Clause, CnfErr> {
-            let mut vec_line = line.trim().split(" ").collect::<Vec<&str>>();
+            let mut vec_line = line.trim().split(' ').collect::<Vec<&str>>();
             match vec_line.pop() {
                 Some(x) => match x.parse::<i32>() {
                     Ok(n) => {
@@ -44,8 +44,8 @@ impl FromStr for Cnf {
             };
 
             match vec_line.iter().map(|x| x.parse()).try_collect() {
-                Ok(v) => return Ok(Clause(v)),
-                Err(_) => return Err(CnfErr(format!("Could not parse clause part of CNF line {:#?}", line))),
+                Ok(v) => Ok(Clause(v)),
+                Err(_) => Err(CnfErr(format!("Could not parse clause part of CNF line {:#?}", line))),
             }
         }
 
@@ -55,7 +55,7 @@ impl FromStr for Cnf {
         for line in s.lines() {
             if line.contains("cnf") {
                 //first line
-                let elts = line.split(" ").collect::<Vec<&str>>();
+                let elts = line.split(' ').collect::<Vec<&str>>();
                 if elts[1] != "cnf" {
                     return Err(CnfErr("Header not formatted correctly".to_string()));
                 }
@@ -87,7 +87,7 @@ impl FromStr for Cnf {
             ));
         }
 
-        return Ok(cnf);
+        Ok(cnf)
     }
 }
 
@@ -108,7 +108,7 @@ impl Cnf {
     pub fn extend_cube_str(&self, cube: &Cube) -> String {
         let mut cnf_copy = self.clone();
         cnf_copy.extend_cube(cube);
-        return cnf_copy.to_string();
+        cnf_copy.to_string()
     }
 }
 
@@ -150,7 +150,7 @@ mod tests {
                 }
                 cnf.clauses.push(Clause(v));
             }
-            println!("{}", cnf.to_string());
+            println!("{}", cnf);
             println!("\n");
             assert_eq!(cnf.to_string().parse::<Cnf>().unwrap(), cnf);
             assert_eq!(cnf.to_string().parse::<Cnf>().unwrap().to_string(), cnf.to_string());

@@ -31,7 +31,7 @@ impl FromStr for Wcnf {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn parse_header(header: &str, wcnf: &mut Wcnf) -> Result<(), WcnfErr> {
-            let elts = header.trim().split(" ").collect::<Vec<_>>();
+            let elts = header.trim().split(' ').collect::<Vec<_>>();
             if !(elts[0] == "p" && elts[1] == "wcnf") {
                 return Err(WcnfErr("Header incorrectly formatted".to_string()));
             }
@@ -41,18 +41,16 @@ impl FromStr for Wcnf {
                     wcnf.num_vars = num_vars;
                     wcnf.num_clauses = num_clauses;
                     wcnf.hard_weight = hard_weight;
-                    return Ok(());
+                    Ok(())
                 }
-                _ => {
-                    return Err(WcnfErr(
-                        "Failed to correctly parse numerical values in header".to_string(),
-                    ))
-                }
+                _ => Err(WcnfErr(
+                    "Failed to correctly parse numerical values in header".to_string(),
+                )),
             }
         }
 
         fn parse_line(line: &str, wcnf: &mut Wcnf) -> Result<u32, WcnfErr> {
-            let mut elts = line.trim().split(" ").into_iter().peekable();
+            let mut elts = line.trim().split(' ');
             let mut out_vec = Vec::new();
             let mut largest = 0;
 
@@ -65,7 +63,7 @@ impl FromStr for Wcnf {
                 match x.parse::<i32>() {
                     Ok(x) => {
                         if x != 0 {
-                            out_vec.push(x as i32);
+                            out_vec.push(x);
                             if x.abs_diff(0) > largest {
                                 largest = x.abs_diff(0);
                             }
@@ -78,7 +76,7 @@ impl FromStr for Wcnf {
             }
 
             wcnf.clauses.push((weight, Clause(out_vec)));
-            return Ok(largest);
+            Ok(largest)
         }
 
         let mut wcnf = Wcnf {
@@ -101,7 +99,7 @@ impl FromStr for Wcnf {
         }
 
         wcnf.num_vars = largest_variable_seen;
-        return Ok(wcnf);
+        Ok(wcnf)
     }
 }
 
@@ -122,6 +120,6 @@ impl Wcnf {
     pub fn extend_cube_str(&self, cube: &Cube) -> String {
         let mut wcnf_copy = self.clone();
         wcnf_copy.extend_cube(cube);
-        return wcnf_copy.to_string();
+        wcnf_copy.to_string()
     }
 }

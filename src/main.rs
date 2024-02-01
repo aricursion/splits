@@ -5,10 +5,12 @@ mod config;
 mod cube;
 mod tree_gen;
 mod wcnf;
+mod reconstruct;
 
 use crate::config::{Config, ConfigError};
 use crate::cube::Cube;
 use crate::tree_gen::tree_gen;
+use crate::reconstruct::parse_logs;
 use cmd_line::get_args;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
@@ -21,13 +23,13 @@ fn setup_directories(config: &Config) -> Result<(), io::Error> {
     }
 
     if !Path::exists(Path::new(&format!("{}/logs", &config.output_dir))) {
-        fs::create_dir(&format!("{}/logs", &config.output_dir))?;
+        fs::create_dir(format!("{}/logs", &config.output_dir))?;
     }
 
     if !Path::exists(Path::new(&config.tmp_dir)) {
         fs::create_dir(&config.tmp_dir)?;
     }
-    return Ok(());
+    Ok(())
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -67,6 +69,7 @@ fn main() -> Result<(), std::io::Error> {
 
     setup_directories(&config)?;
     tree_gen(&config, &pool, &Cube(Vec::new()), config.timeout as f32)?;
+    parse_logs(&format!("{}/best.log", config.output_dir), &format!("{}/cubes.icnf", config.output_dir))?;
 
-    return Ok(());
+    Ok(())
 }
