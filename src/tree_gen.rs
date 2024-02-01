@@ -41,13 +41,11 @@ fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
     }
 }
 
+type ClassVecScores = HashMap<Vec<u32>, Vec<(Vec<i32>, Option<f32>)>>;
+
 // this is some garbage code lol
 // I should fix this
-fn compare(
-    config: &Config,
-    hm: &HashMap<Vec<u32>, Vec<(Vec<i32>, Option<f32>)>>,
-    prev_metric: f32,
-) -> Option<Vec<(Vec<i32>, f32)>> {
+fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec<(Vec<i32>, f32)>> {
     let cmp_helper = match config.comparator {
         MaxOfMin => |winning: Vec<(Vec<i32>, f32)>, chal: Vec<(Vec<i32>, f32)>| -> Vec<(Vec<i32>, f32)> {
             let winning_min = winning.iter().map(|x| x.1).reduce(f32::min).unwrap();
@@ -191,7 +189,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
     });
 
     let solver_results = receiver.iter();
-    let mut hm_results: HashMap<Vec<u32>, Vec<(Vec<i32>, Option<f32>)>> = HashMap::new();
+    let mut hm_results: ClassVecScores = HashMap::new();
 
     let mut all_log_file = OpenOptions::new()
         .write(true)
