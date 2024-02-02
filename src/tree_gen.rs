@@ -3,7 +3,6 @@ use crate::config::{
     Config,
 };
 use crate::cube::Cube;
-
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::ThreadPool;
@@ -47,22 +46,26 @@ type ClassVecScores = HashMap<Vec<u32>, Vec<(Vec<i32>, Option<f32>, Option<f32>)
 // I should fix this
 fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec<(Vec<i32>, f32, f32)>> {
     let cmp_helper = match config.comparator {
-        MaxOfMin => |winning: Vec<(Vec<i32>, f32, f32)>, chal: Vec<(Vec<i32>, f32, f32)>| -> Vec<(Vec<i32>, f32, f32)> {
-            let winning_min = winning.iter().map(|x| x.1).reduce(f32::min).unwrap();
-            let chal_min = chal.iter().map(|x| x.1).reduce(f32::min).unwrap();
-            if winning_min > chal_min {
-                return winning;
+        MaxOfMin => {
+            |winning: Vec<(Vec<i32>, f32, f32)>, chal: Vec<(Vec<i32>, f32, f32)>| -> Vec<(Vec<i32>, f32, f32)> {
+                let winning_min = winning.iter().map(|x| x.1).reduce(f32::min).unwrap();
+                let chal_min = chal.iter().map(|x| x.1).reduce(f32::min).unwrap();
+                if winning_min > chal_min {
+                    return winning;
+                }
+                chal
             }
-            chal
-        },
-        MinOfMax => |winning: Vec<(Vec<i32>, f32, f32)>, chal: Vec<(Vec<i32>, f32, f32)>| -> Vec<(Vec<i32>, f32, f32)> {
-            let winning_max = winning.iter().map(|x| x.1).reduce(f32::max).unwrap();
-            let chal_max = chal.iter().map(|x| x.1).reduce(f32::max).unwrap();
-            if winning_max < chal_max {
-                return winning;
+        }
+        MinOfMax => {
+            |winning: Vec<(Vec<i32>, f32, f32)>, chal: Vec<(Vec<i32>, f32, f32)>| -> Vec<(Vec<i32>, f32, f32)> {
+                let winning_max = winning.iter().map(|x| x.1).reduce(f32::max).unwrap();
+                let chal_max = chal.iter().map(|x| x.1).reduce(f32::max).unwrap();
+                if winning_max < chal_max {
+                    return winning;
+                }
+                chal
             }
-            chal
-        },
+        }
     };
 
     let candidates = match config.comparator {
@@ -87,7 +90,7 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
     let nice_candidates = candidates.iter().map(|class_vec| {
         class_vec
             .iter()
-            .map(|v| (v.0.clone(), v.1.unwrap(),  v.2.unwrap()))
+            .map(|v| (v.0.clone(), v.1.unwrap(), v.2.unwrap()))
             .collect::<Vec<_>>()
     });
     nice_candidates.reduce(cmp_helper)
@@ -137,7 +140,13 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
     }
 }
 
-pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f32, prev_time: f32) -> Result<(), io::Error> {
+pub fn tree_gen(
+    config: &Config,
+    pool: &ThreadPool,
+    ccube: &Cube,
+    prev_metric: f32,
+    prev_time: f32,
+) -> Result<(), io::Error> {
     let ccube_vec = &ccube.0;
 
     if done_check(config, ccube_vec) {
