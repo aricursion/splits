@@ -2,7 +2,10 @@
 Satisfiability Parallelism Leveraging Ideal Tree Splits
 
 # Usage
-In order to run SPLITS, just do `./splits -c config.cfg` where `config.cfg` is a valid config. See Configuration Options below for details, and `examples/` for some example configurations. Besides setting up the config for your use case, if you want to use `cadical` or `maxcdcl`, just ensure that in the scripts `cadical_wrapper.py` or `maxcdcl_wrapper.py` the `command` variable matches the location of `cadical` or `maxcdcl` on your system. Also, make sure the tracked metrics agree. 
+In order to run SPLITS, just do `./splits -c config.cfg` where `config.cfg` is a valid config.
+See Configuration Options below for details, and `examples/` for some example configurations. 
+Besides setting up the config for your use case, if you want to use `cadical` or `maxcdcl`, just ensure that in the scripts `cadical_wrapper.py` or `maxcdcl_wrapper.py` the `command` variable matches the location of `cadical` or `maxcdcl` on your system. 
+Also, make sure the tracked metrics agree. 
 
 TODO: Add all metrics, and make the usage of "packaged" wrappers more seamless.
 
@@ -26,7 +29,11 @@ TODO: Add all metrics, and make the usage of "packaged" wrappers more seamless.
 # The Interface of the Solver and Tracking Metrics
 The solver must take two arguments as input `$1` is the (W)CNF file and `$2` is the log file where it should write its output.
 
-The last two line of the solver's standard out should be of the form `SPLITS DATA \n {"metric1": num, "metric2": num, ... "metricn": num}`. Any metric that should be tracked in the logs should be placed in `tracked metrics`. Moreover, the metric used for comparison, the `evaluation metric`, should appear in `tracked metrics`. For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of seconds, the last line of the stdout of the solver would need to be: `{"time": 15.251, "ticks": 15816'}`. This is the default formatting of printing a python dictionary with the exception that double quotes must be used. Then, the config would need to contain:
+The last two line of the solver's standard out should be of the form `SPLITS DATA \n {"metric1": num, "metric2": num, ... "metricn": num}`. 
+Any metric that should be tracked in the logs should be placed in `tracked metrics`. 
+Moreover, the metric used for comparison, the `evaluation metric`, should appear in `tracked metrics`. 
+For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of seconds, the last line of the stdout of the solver would need to be: `{"time": 15.251, "ticks": 15816'}`. 
+This is the default formatting of printing a python dictionary with the exception that double quotes must be used. Then, the config would need to contain:
 ```
 tracked metrics: time ticks
 evaluation metric: time
@@ -34,15 +41,23 @@ evaluation metric: time
 An example wrapper around cadical can be found in the `examples/` directory
 
 ## "time"
-The only thing that is required for the ouput is that "time" must be tracked, even if it is not used as a cutoff metric. The reason for this is sometimes adding a variable to a cube can drastically degrade performance. Because of this, one should kill processes that take substantially longer
+The only thing that is required for the ouput is that "time" must be tracked, even if it is not used as a cutoff metric. 
+The reason for this is sometimes adding a variable to a cube can drastically degrade performance. 
+Because of this, one should kill processes that take substantially longer
 than previous iterations. When using `"time"` as a metric, I recommend using at most `1.0` as the `time proportion` setting in the config. Otherwise, some experimentation might be required.
 
 ## Responsibilities of the wrapper
-The wrapper must do a few things in order to work properly. The most important thing is that when it recieves a `SIGTERM`, it forwards it (or some other signal) to kill the process that it spawns. Technically you don't *have* to do this, but if you don't you are going to have a bad time.
+The wrapper must do a few things in order to work properly. 
+The most important thing is that when it recieves a `SIGTERM`, it forwards it (or some other signal) to kill the process that it spawns. 
+Technically you don't *have* to do this, but if you don't you are going to have a bad time.
 
-The other important thing is that when the solver finishes, it should block `SIGTERM` so it doesn't get interupted while writing logs. You also don't *have* to do this, but you could miss out on optimal splits if you don't.
+The other important thing is that when the solver finishes, it should block `SIGTERM` so it doesn't get interupted while writing logs. 
+You also don't *have* to do this, but you could miss out on optimal splits if you don't.
 
 For more details, read the README in `examples/`
 
 # Note about Storage
-Because programming is hard and I don't really know how syscalls work, the running storage footprint is fairly large. In particular, even if you don't store logs or CNFS, at each layer in the tree there is a chance they will only get cleaned up at the end. This is probably not an issue, but if you have very high `search depth` (> 4) and lots of `variables`, make sure you have at least a few gigabytes of storage availible just in case. I haven't measured this, and this is probably overkill, and I should probably fix this, but I'm putting a warning here for now.
+Because programming is hard and I don't really know how syscalls work, the running storage footprint is fairly large. 
+In particular, even if you don't store logs or CNFS, at each layer in the tree there is a chance they will only get cleaned up at the end. 
+This is probably not an issue, but if you have very high `search depth` (> 4) and lots of `variables`, make sure you have at least a few gigabytes of storage availible just in case. 
+I haven't measured this, and this is probably substantially overkill, and I should probably fix this, but I'm putting a warning here for now.

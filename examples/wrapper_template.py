@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import subprocess
 import sys
 import signal
@@ -31,6 +32,7 @@ def run_cadical():
     log_file = open(sys.argv[2], "w")
 
     command = NotImplemented # fill this in
+    
     p = subprocess.Popen([command, sys.argv[1]], stdout=log_file)
 
     p.wait()
