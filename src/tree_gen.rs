@@ -41,13 +41,13 @@ pub fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
     }
 }
 
-type ClassVecScores = HashMap<Vec<u32>, Vec<(Vec<i32>, Option<f32>)>>;
+type ClassVecScores = HashMap<Vec<u32>, Vec<(Vec<i32>, Option<f32>, Option<f32>)>>;
 
 // this is some garbage code lol
 // I should fix this
-fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec<(Vec<i32>, f32)>> {
+fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec<(Vec<i32>, f32, f32)>> {
     let cmp_helper = match config.comparator {
-        MaxOfMin => |winning: Vec<(Vec<i32>, f32)>, chal: Vec<(Vec<i32>, f32)>| -> Vec<(Vec<i32>, f32)> {
+        MaxOfMin => |winning: Vec<(Vec<i32>, f32, f32)>, chal: Vec<(Vec<i32>, f32, f32)>| -> Vec<(Vec<i32>, f32, f32)> {
             let winning_min = winning.iter().map(|x| x.1).reduce(f32::min).unwrap();
             let chal_min = chal.iter().map(|x| x.1).reduce(f32::min).unwrap();
             if winning_min > chal_min {
@@ -55,7 +55,7 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
             }
             chal
         },
-        MinOfMax => |winning: Vec<(Vec<i32>, f32)>, chal: Vec<(Vec<i32>, f32)>| -> Vec<(Vec<i32>, f32)> {
+        MinOfMax => |winning: Vec<(Vec<i32>, f32, f32)>, chal: Vec<(Vec<i32>, f32, f32)>| -> Vec<(Vec<i32>, f32, f32)> {
             let winning_max = winning.iter().map(|x| x.1).reduce(f32::max).unwrap();
             let chal_max = chal.iter().map(|x| x.1).reduce(f32::max).unwrap();
             if winning_max < chal_max {
@@ -87,7 +87,7 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
     let nice_candidates = candidates.iter().map(|class_vec| {
         class_vec
             .iter()
-            .map(|v| (v.0.clone(), v.1.unwrap()))
+            .map(|v| (v.0.clone(), v.1.unwrap(),  v.2.unwrap()))
             .collect::<Vec<_>>()
     });
     nice_candidates.reduce(cmp_helper)
@@ -100,12 +100,8 @@ fn run_solver(config: &Config, cnf_loc: String, cube: &Cube, prev_time: f32) -> 
         .args([&cnf_loc, &log_file_loc])
         .spawn()?;
 
-    let timeout_dur = if config.evaluation_metric == "time" {
-        Duration::from_secs_f32(prev_time)
-    } else {
-        Duration::from_secs(config.timeout as u64)
-    };
-    // sleep(timeout_dur);
+    let timeout_dur = Duration::from_secs_f32(prev_time * config.time_proportion);
+
     let id = child.id();
 
     let res = match child.wait_timeout(timeout_dur)? {
@@ -141,7 +137,7 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
     }
 }
 
-pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f32) -> Result<(), io::Error> {
+pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f32, prev_time: f32) -> Result<(), io::Error> {
     let ccube_vec = &ccube.0;
 
     if done_check(config, ccube_vec) {
@@ -189,7 +185,7 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
 
     pool.install(|| {
         commands.into_par_iter().for_each_with(sender, |s, (cnf_loc, cube)| {
-            let res = run_solver(config, cnf_loc, &cube, prev_metric);
+            let res = run_solver(config, cnf_loc, &cube, prev_time);
             s.send((cube, res)).unwrap()
         })
     });
@@ -205,20 +201,20 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
 
     for (cube, log_loc) in solver_results {
         // println!("Writing {cube} to all.log");
-        let eval_met = match log_loc {
+        let (eval_met, time) = match log_loc {
             Ok(Some(log_loc)) => {
                 let (eval_met, all_met) = parse_logs(config, &log_loc)?;
 
                 all_log_file.write_all(format!("{}: {:?}\n", cube, all_met).as_bytes())?;
-                Some(eval_met)
+                (Some(eval_met), Some(*all_met.get("time").unwrap()))
             }
             Ok(None) => {
                 all_log_file.write_all(format!("{}: Timeout\n", cube).as_bytes())?;
-                None
+                (None, None)
             }
             Err(e) => {
                 all_log_file.write_all(format!("{}: {}\n", cube, e).as_bytes())?;
-                None
+                (None, None)
             }
         };
 
@@ -226,10 +222,10 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
 
         match hm_results.entry(class) {
             Entry::Occupied(mut v) => {
-                v.get_mut().push((cube.0, eval_met));
+                v.get_mut().push((cube.0, eval_met, time));
             }
             Entry::Vacant(e) => {
-                e.insert(vec![(cube.0, eval_met)]);
+                e.insert(vec![(cube.0, eval_met, time)]);
             }
         }
     }
@@ -256,12 +252,12 @@ pub fn tree_gen(config: &Config, pool: &ThreadPool, ccube: &Cube, prev_metric: f
                 match config.comparator {
                     MaxOfMin => {
                         if v.1 < config.cutoff {
-                            tree_gen(config, pool, &new_cube, v.1)?
+                            tree_gen(config, pool, &new_cube, v.1, v.2)?
                         }
                     }
                     MinOfMax => {
                         if v.1 > config.cutoff {
-                            tree_gen(config, pool, &new_cube, v.1)?
+                            tree_gen(config, pool, &new_cube, v.1, v.2)?
                         }
                     }
                 }

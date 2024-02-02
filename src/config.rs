@@ -67,6 +67,7 @@ pub struct Config {
     pub search_depth: u32,
     pub preserve_cnf: bool,
     pub cutoff_proportion: f32,
+    pub time_proportion: f32,
     pub cutoff: f32,
     pub preserve_logs: bool,
 }
@@ -82,13 +83,14 @@ impl fmt::Display for Config {
             SatType::Cnf(_) => vec_output.push("           SAT Type: CNF".to_string()),
             SatType::Wcnf(_) => vec_output.push("          SAT Type: WCNF".to_string()),
         }
-        vec_output.push(format!("   Output directory: {}", self.output_dir));
-        vec_output.push(format!("Temporary directory: {}", self.tmp_dir));
-        vec_output.push(format!("  Evaluation metric: {}", self.evaluation_metric));
-        vec_output.push(format!("       Thread count: {}", self.thread_count));
-        vec_output.push(format!("       Search depth: {}", self.search_depth));
+        vec_output.push(format!("   Output Directory: {}", self.output_dir));
+        vec_output.push(format!("Temporary Directory: {}", self.tmp_dir));
+        vec_output.push(format!("  Evaluation Metric: {}", self.evaluation_metric));
+        vec_output.push(format!("       Thread Count: {}", self.thread_count));
+        vec_output.push(format!("       Search Depth: {}", self.search_depth));
         vec_output.push(format!("       Preserve CNF: {}", self.preserve_cnf));
-        vec_output.push(format!("  Cutoff proportion: {}", self.cutoff_proportion));
+        vec_output.push(format!("  Cutoff Proportion: {}", self.cutoff_proportion));
+        vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
         vec_output.push(format!("      Preserve Logs: {}", self.preserve_logs));
 
@@ -131,6 +133,7 @@ impl Config {
         let mut thread_count = rayon::current_num_threads();
         let mut cutoff_proportion = 1.0;
         let mut cutoff_opt = None;
+        let mut time_proportion = 1.0;
 
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
@@ -274,6 +277,21 @@ impl Config {
                         )))
                     }
                 },
+                "time proportion" => match argument.parse() {
+                    Ok(f) => {
+                        if f <= 0.0 {
+                            return Err(ConfigError(format!(
+                                "Time proportion {f} needs to be a positive float."
+                            )));
+                        }
+                        time_proportion = f
+                    }
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a time proportion. Please make sure it is a positive float"
+                        )))
+                    }
+                },
                 "cutoff" => match argument.parse() {
                     Ok(f) => {
                         if f <= 0.0 {
@@ -329,12 +347,6 @@ impl Config {
                 (Some(v), Some(s), Some(c), Some(em), Some(ct)) => (v, s, c, em, ct),
             };
 
-        // if !tracked_metrics.contains(&evaluation_metric) {
-        //     return Err(ConfigError(
-        //         "The evaluation metric must appear in the set of tracked metrics.".to_string(),
-        //     ));
-        // }
-
         Ok(Config {
             variables,
             multitree_variables,
@@ -349,6 +361,7 @@ impl Config {
             search_depth,
             preserve_cnf,
             cutoff_proportion,
+            time_proportion,
             cutoff,
             preserve_logs,
         })

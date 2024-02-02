@@ -14,13 +14,13 @@ TODO: Add all metrics, and make the usage of "packaged" wrappers more seamless.
 - **(w)cnf**: The location of the (w)cnf file.
 - **output dir (optional)**: The directory that SPLITS will leave its outputs in. By default it is 'splits_output_directory'
 - **tmp dir (optional)**: The directory that SPLITS will do work in. It will be cleaned up at the end of execution if it goes normally. By default it is 'splits_working_directory'
-- **tracked metrics**: The list of metrics to track. See below for proper configuration details.
 - **evaluation metric**: The metric by which vertices should be evaluated. This must appear in tracked metrics. See below for proper configuration details.
 - **thread count (optional)**: The maximum number of threads to be used by SPLITS. **Warning: the default is the max on your system**
 - **search depth (optional)**: How deep should each leaf search? The default is 1.
 - **preserve cnf (optional)**: A boolean value whether the generated CNFs should be saved. This can be very costly on storage for large experiments. The default is false.
 - **preserve logs (optional)**: A boolean value whether to store the logs of individual cube trials. The default is true.
 - **cutoff proportion (optional)**: A float p between 0 and 1 representing the minimum "percentage improvement" the next layer must make to be considered valid. The default is 1 meaning any improvement is considered valid.
+- **time proportion (optional)**L A float p > 0 representing the maximum decrease in time that a child cube can take. For example, if a cube takes t seconds, then its children can take at most p*t seconds. The default is 1, meaning that children are killed as soon as they take longer than their parents.
 - **cutoff**: The value at which metrics should stop their search.
 
 # The Interface of the Solver and Tracking Metrics
@@ -34,7 +34,8 @@ evaluation metric: time
 An example wrapper around cadical can be found in the `examples/` directory
 
 ## "time"
-For now the metric "time" has a special meaning. In particular, it is the only metric that is evaluated "greedily" in the sense that solvers that take longer than the previous iteration can be cutoff early. In order to get this behavior, make sure the evaluation metric is "time".
+The only thing that is required for the ouput is that "time" must be tracked, even if it is not used as a cutoff metric. The reason for this is sometimes adding a variable to a cube can drastically degrade performance. Because of this, one should kill processes that take substantially longer
+than previous iterations. When using `"time"` as a metric, I recommend using at most `1.0` as the `time proportion` setting in the config. Otherwise, some experimentation might be required.
 
 ## Responsibilities of the wrapper
 The wrapper must do a few things in order to work properly. The most important thing is that when it recieves a `SIGTERM`, it forwards it (or some other signal) to kill the process that it spawns. Technically you don't *have* to do this, but if you don't you are going to have a bad time.
@@ -45,6 +46,3 @@ For more details, read the README in `examples/`
 
 # Note about Storage
 Because programming is hard and I don't really know how syscalls work, the running storage footprint is fairly large. In particular, even if you don't store logs or CNFS, at each layer in the tree there is a chance they will only get cleaned up at the end. This is probably not an issue, but if you have very high `search depth` (> 4) and lots of `variables`, make sure you have at least a few gigabytes of storage availible just in case. I haven't measured this, and this is probably overkill, and I should probably fix this, but I'm putting a warning here for now.
-
-# Decisions to be made
-- Currently the way that the solver function works is that if "time" is the metric then the solvers it spawns can run at most "time" seconds. Otherwise they can do at most `config.timeout` seconds. I'm not sure this is a good choice. Even if "time" isn't the main metric, it's unlikely you want to consider instances which take much longer than the previous one. But then should I require "time" to be tracked? Also, there is no reason someone should pick "time" over "seconds" or any other word.
