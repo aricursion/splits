@@ -105,6 +105,7 @@ fn run_solver(config: &Config, cnf_loc: &str, cube: &Cube, prev_time: f32) -> Re
 
     let waited = child.wait_timeout(timeout_dur)?;
     child.kill()?;
+    child.wait()?;
     let res = match waited {
         Some(_) => Ok(Some(log_file_loc)),
         None => Ok(None),
