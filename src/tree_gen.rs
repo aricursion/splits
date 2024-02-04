@@ -2,14 +2,14 @@ use crate::config::{
     Comparator::{MaxOfMin, MinOfMax},
     Config,
 };
-use crate::cube::Cube;
+use crate::cube::{neg_var, pos_var, Cube};
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::ThreadPool;
 use std::collections::{hash_map::Entry, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::process::Command;
+use std::process::{Command, exit};
 use std::sync::mpsc::channel;
 use std::time::Duration;
 use wait_timeout::ChildExt;
@@ -18,7 +18,7 @@ fn done_check(config: &Config, cube_vars: &[i32]) -> bool {
     return config
         .variables
         .iter()
-        .all(|x| cube_vars.contains(&(*x as i32)) || cube_vars.contains(&(-(*x as i32))));
+        .all(|x| Cube(cube_vars.to_vec()).contains_var(*x));
 }
 
 // this destroys v
@@ -29,8 +29,8 @@ pub fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
             let res = hyper_vec(v);
             for mut mini_hyper in res {
                 let mut mini_hyper_copy = mini_hyper.clone();
-                mini_hyper.push(x as i32);
-                mini_hyper_copy.push(-(x as i32));
+                mini_hyper.push(pos_var(x));
+                mini_hyper_copy.push(neg_var(x));
                 output.push(mini_hyper);
                 output.push(mini_hyper_copy)
             }
@@ -99,7 +99,7 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
 fn run_solver(config: &Config, cnf_loc: String, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
-    let mut child = Command::new(config.solver.clone())
+    let mut child = Command::new(&config.solver)
         .args([&cnf_loc, &log_file_loc])
         .spawn()?;
 
@@ -110,8 +110,8 @@ fn run_solver(config: &Config, cnf_loc: String, cube: &Cube, prev_time: f32) -> 
     let res = match child.wait_timeout(timeout_dur)? {
         Some(_) => Ok(Some(log_file_loc)),
         None => {
-            // I'm not sure this is correct. Will this kill offset?
-            Command::new("pkill").arg(format!("-P {}", id)).output().unwrap();
+            // child.kill() sends a SIGKILL. I want to send SIGTERM
+            Command::new("kill").arg(format!("{id}")).output().unwrap();
             Ok(None)
         }
     };
@@ -134,8 +134,12 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
     match json.get(&config.evaluation_metric) {
         Some(x) => Ok((*x, json)),
         None => {
-            println!("The evaluation metric did not appear in the output of the solver (or something else went wrong, but it's probably thatf). Please make sure it appears exactly as written in the config.");
-            std::process::exit(1)
+            println!(concat!(
+                "The evaluation metric did not appear in the output of the ",
+                "solver (or something else went wrong, but it's probably that). ",
+                "Please make sure it appears exactly as written in the config."
+            ));
+            exit(1)
         }
     }
 }
@@ -171,10 +175,7 @@ pub fn tree_gen(
 
     let mut commands = Vec::new();
     for split_var_vec in &split_var_vecs {
-        if split_var_vec
-            .iter()
-            .any(|x| ccube.contains_var(*x as i32) || ccube.contains_var(-(*x as i32)))
-        {
+        if split_var_vec.iter().any(|x| ccube.contains_var(*x)) {
             continue;
         }
         let split_vars_hc = hyper_vec(&mut split_var_vec.clone());
@@ -227,7 +228,13 @@ pub fn tree_gen(
             }
         };
 
-        let class = cube.0.iter().rev().take(search_depth).map(|x| x.abs_diff(0)).collect();
+        let class = cube
+            .0
+            .iter()
+            .rev()
+            .take(search_depth)
+            .map(|x| x.unsigned_abs())
+            .collect();
 
         match hm_results.entry(class) {
             Entry::Occupied(mut v) => {

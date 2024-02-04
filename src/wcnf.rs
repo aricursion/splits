@@ -106,7 +106,7 @@ impl FromStr for Wcnf {
 impl Wcnf {
     pub fn extend_cube(&mut self, Cube(v): &Cube) {
         for var in v {
-            let abs_var = var.abs_diff(0);
+            let abs_var = var.unsigned_abs();
             if abs_var > self.num_vars {
                 self.num_vars = abs_var;
             }

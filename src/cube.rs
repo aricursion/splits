@@ -44,8 +44,8 @@ impl Cube {
     pub fn extend(&self, var: u32) -> (Cube, Cube) {
         let mut v1 = self.0.clone();
         let mut v2 = self.0.clone();
-        v1.push(var as i32);
-        v2.push(-(var as i32));
+        v1.push(pos_var(var));
+        v2.push(neg_var(var));
         (Cube(v1), Cube(v2))
     }
 
@@ -55,9 +55,23 @@ impl Cube {
         Cube(new_vec)
     }
 
-    pub fn contains_var(&self, var: i32) -> bool {
+    // Wehther the cube contains the specific polarity of a variables
+    pub fn contains_sign_var(&self, var: i32) -> bool {
         return self.0.iter().any(|x| *x == var);
     }
+
+    // Whether the cube contains either polarity of a variable
+    pub fn contains_var(&self, var: u32) -> bool {
+        return self.0.iter().any(|x| *x == pos_var(var) || *x == neg_var(var));
+    }
+}
+
+pub fn pos_var(var: u32) -> i32 {
+    var as i32
+}
+
+pub fn neg_var(var: u32) -> i32 {
+    -(var as i32)
 }
 
 #[cfg(test)]

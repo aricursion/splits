@@ -34,7 +34,7 @@ fn setup_directories(config: &Config) -> Result<(), io::Error> {
     Ok(())
 }
 
-fn main() -> Result<(), std::io::Error> {
+fn main() -> Result<(), io::Error> {
     let args = get_args();
     let config_string = fs::read_to_string(args.config_file)?;
 
