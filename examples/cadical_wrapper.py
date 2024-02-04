@@ -73,23 +73,6 @@ def get_subsumed(cadical_output):
     return float(nums.split(" ")[0])
 
 
-def term_handler(sig, frame):
-    p.kill()
-
-    # Write Splits data. This is optional
-    # in the sense that the SPLITS tool
-    # knows which children terminate
-    # early without reading the logs
-    f = open(sys.argv[2], "a")
-    f.write("SPLITS DATA\n")
-    f.write("Terminated\n")
-    exit(0)
-
-
-# Install the signal handler to recieve
-# a SIGTERM
-signal.signal(signal.SIGTERM, term_handler)
-
 p = None
 
 

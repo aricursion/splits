@@ -9,7 +9,7 @@ use rayon::ThreadPool;
 use std::collections::{hash_map::Entry, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::process::{Command, exit};
+use std::process::{exit, Command};
 use std::sync::mpsc::channel;
 use std::time::Duration;
 use wait_timeout::ChildExt;
@@ -96,24 +96,18 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
     nice_candidates.reduce(cmp_helper)
 }
 
-fn run_solver(config: &Config, cnf_loc: String, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
+fn run_solver(config: &Config, cnf_loc: &str, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
-    let mut child = Command::new(&config.solver)
-        .args([&cnf_loc, &log_file_loc])
-        .spawn()?;
+    let mut child = Command::new(&config.solver).args([cnf_loc, &log_file_loc]).spawn()?;
 
     let timeout_dur = Duration::from_secs_f32(prev_time * config.time_proportion);
 
-    let id = child.id();
-
     let waited = child.wait_timeout(timeout_dur)?;
-    Command::new("kill").arg(format!("{id}")).output().unwrap();
+    child.kill()?;
     let res = match waited {
         Some(_) => Ok(Some(log_file_loc)),
-        None => {
-            Ok(None)
-        }
+        None => Ok(None),
     };
 
     if !config.preserve_cnf {
@@ -165,7 +159,7 @@ pub fn tree_gen(
             .count();
 
     let search_depth = usize::min(num_valid_split_vars, config.search_depth as usize);
-
+    println!("search depth");
     let split_var_vecs = config
         .variables
         .clone()
@@ -173,6 +167,7 @@ pub fn tree_gen(
         .combinations(search_depth)
         .collect::<Vec<Vec<u32>>>();
 
+    println!("{:?}", split_var_vecs);
     let mut commands = Vec::new();
     for split_var_vec in &split_var_vecs {
         if split_var_vec.iter().any(|x| ccube.contains_var(*x)) {
@@ -195,7 +190,7 @@ pub fn tree_gen(
 
     pool.install(|| {
         commands.into_par_iter().for_each_with(sender, |s, (cnf_loc, cube)| {
-            let res = run_solver(config, cnf_loc, &cube, prev_time);
+            let res = run_solver(config, &cnf_loc, &cube, prev_time);
             s.send((cube, res)).unwrap()
         })
     });
@@ -233,6 +228,7 @@ pub fn tree_gen(
             .iter()
             .rev()
             .take(search_depth)
+            .rev()
             .map(|x| x.unsigned_abs())
             .collect();
 
