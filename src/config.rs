@@ -76,6 +76,7 @@ impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut vec_output = Vec::with_capacity(11);
         vec_output.push(format!("          Variables: {:?}", self.variables));
+        vec_output.push(format!("Multitree Variables: {:?}", self.multitree_variables));
         vec_output.push(format!("         Comparator: {}", self.comparator));
         vec_output.push(format!("            Timeout: {}", self.timeout));
         vec_output.push(format!("             Solver: {}", self.solver));
