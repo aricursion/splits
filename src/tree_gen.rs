@@ -107,11 +107,11 @@ fn run_solver(config: &Config, cnf_loc: String, cube: &Cube, prev_time: f32) -> 
 
     let id = child.id();
 
-    let res = match child.wait_timeout(timeout_dur)? {
+    let waited = child.wait_timeout(timeout_dur)?;
+    Command::new("kill").arg(format!("{id}")).output().unwrap();
+    let res = match waited {
         Some(_) => Ok(Some(log_file_loc)),
         None => {
-            // child.kill() sends a SIGKILL. I want to send SIGTERM
-            Command::new("kill").arg(format!("{id}")).output().unwrap();
             Ok(None)
         }
     };
