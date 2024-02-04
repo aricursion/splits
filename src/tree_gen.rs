@@ -159,7 +159,6 @@ pub fn tree_gen(
             .count();
 
     let search_depth = usize::min(num_valid_split_vars, config.search_depth as usize);
-    println!("search depth");
     let split_var_vecs = config
         .variables
         .clone()
@@ -167,7 +166,6 @@ pub fn tree_gen(
         .combinations(search_depth)
         .collect::<Vec<Vec<u32>>>();
 
-    println!("{:?}", split_var_vecs);
     let mut commands = Vec::new();
     for split_var_vec in &split_var_vecs {
         if split_var_vec.iter().any(|x| ccube.contains_var(*x)) {
