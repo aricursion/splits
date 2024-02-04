@@ -255,7 +255,7 @@ pub fn tree_gen(
     match best_vec {
         Some(best_vecs) => {
             for v in best_vecs {
-                let extension_vars = v.0.into_iter().rev().take(search_depth).collect::<Vec<_>>();
+                let extension_vars = v.0.into_iter().rev().take(search_depth).rev().collect::<Vec<_>>();
                 let new_cube = ccube.extend_vars(extension_vars);
 
                 best_log_file.write_all(format!("{}: {:?}\n", &new_cube, v.1).as_bytes())?;
