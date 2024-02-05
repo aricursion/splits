@@ -127,7 +127,7 @@ impl Config {
         let mut tmp_dir = String::from("splits_working_directory");
         let mut evaluation_metric_opt = None;
         let mut preserve_cnf = false;
-        let mut preserve_logs = true;
+        let mut preserve_logs = false;
         let mut multitree_variables = None;
 
         let mut search_depth = 1;
@@ -140,6 +140,11 @@ impl Config {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
             let name = partial_parse_line[0].trim();
             let argument = partial_parse_line[1].trim();
+
+            // if the line is a comment or is empty, skip it
+            if name.contains('#') || line.trim().is_empty() {
+                continue;
+            }
 
             match name {
                 "variables" => {
