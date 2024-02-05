@@ -138,14 +138,18 @@ impl Config {
 
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
-            let name = partial_parse_line[0].trim();
-            let argument = partial_parse_line[1].trim();
+            
+            let lower_name = partial_parse_line[0].to_lowercase();
+            let name = lower_name.trim();
+            
 
             // if the line is a comment or is empty, skip it
             if name.contains('#') || line.trim().is_empty() {
                 continue;
             }
 
+            let argument = partial_parse_line[1].trim();
+            
             match name {
                 "variables" => {
                     let mut variable_vec = Vec::new();

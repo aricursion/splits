@@ -2,7 +2,6 @@
 import subprocess
 import sys
 import re
-import signal
 
 
 def get_time(cadical_output):
@@ -73,19 +72,12 @@ def get_subsumed(cadical_output):
     return float(nums.split(" ")[0])
 
 
-p = None
-
-
 def run_cadical():
-    global p
     f = open(sys.argv[2], "w")
     command = "./testing/cadical"
     p = subprocess.Popen([command, sys.argv[1]], stdout=f)
 
     p.wait()
-    # If the process completes, we should block SIGTERM so we can
-    # finish writing the file and exit normally
-    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGTERM])
     f.close()
 
     f = open(sys.argv[2], "r")

@@ -36,7 +36,13 @@ fn setup_directories(config: &Config) -> Result<(), io::Error> {
 
 fn main() -> Result<(), io::Error> {
     let args = get_args();
-    let config_string = fs::read_to_string(args.config_file)?;
+    let config_string = match fs::read_to_string(args.config_file) {
+        Ok(s) => s,
+        Err(_) => {
+            println!("Could not find config file");
+            exit(1);
+        }
+    };
 
     let mut config = match Config::parse_config(&config_string) {
         Ok(c) => c,
@@ -72,11 +78,11 @@ fn main() -> Result<(), io::Error> {
     setup_directories(&config)?;
 
     let start_cutoff = match config.comparator {
-        config::Comparator::MaxOfMin => 0.0,
+        config::Comparator::MaxOfMin => f32::MIN,
         config::Comparator::MinOfMax => f32::MAX,
     };
 
-    match config.multitree_variables.to_owned(){
+    match config.multitree_variables.to_owned() {
         Some(mut multitree_vars) => {
             let hvs = hyper_vec(&mut multitree_vars);
             let original_output_dir = config.output_dir;
@@ -93,7 +99,7 @@ fn main() -> Result<(), io::Error> {
             parse_logs(
                 &format!("{}/best.log", config.output_dir),
                 &format!("{}/cubes.icnf", config.output_dir),
-            )?
+            )?;
         }
     };
 
