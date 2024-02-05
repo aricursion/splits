@@ -96,10 +96,15 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
     nice_candidates.reduce(cmp_helper)
 }
 
-fn run_solver(config: &Config, cnf_loc: &str, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
+fn run_solver(config: &Config, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
+    let cnf_str = config.cnf.extend_cube_str(&cube);
+    let cnf_loc = format!("{}/{}.cnf", config.tmp_dir, &cube);
+    let mut cnf_file = File::create(&cnf_loc)?;
+    cnf_file.write_all(cnf_str.as_bytes())?;
+
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
-    let mut child = Command::new(&config.solver).args([cnf_loc, &log_file_loc]).spawn()?;
+    let mut child = Command::new(&config.solver).args([&cnf_loc, &log_file_loc]).spawn()?;
 
     let timeout_dur = Duration::from_secs_f32(prev_time * config.time_proportion);
 
@@ -175,21 +180,15 @@ pub fn tree_gen(
         let split_vars_hc = hyper_vec(&mut split_var_vec.clone());
         for split_var_comb in split_vars_hc {
             let split_var_cube = ccube.extend_vars(split_var_comb);
-            // println!("split_var_cue: {}", split_var_cube);
-            let modified_cnf_str = config.cnf.extend_cube_str(&split_var_cube);
-            let modified_cnf_loc = format!("{}/{}.cnf", config.tmp_dir, &split_var_cube);
-            let mut modified_cnf_file = File::create(&modified_cnf_loc)?;
-
-            modified_cnf_file.write_all(modified_cnf_str.as_bytes())?;
-            commands.push((modified_cnf_loc, split_var_cube))
+            commands.push(split_var_cube)
         }
     }
 
     let (sender, receiver) = channel();
 
     pool.install(|| {
-        commands.into_par_iter().for_each_with(sender, |s, (cnf_loc, cube)| {
-            let res = run_solver(config, &cnf_loc, &cube, prev_time);
+        commands.into_par_iter().for_each_with(sender, |s, cube| {
+            let res = run_solver(config, &cube, prev_time);
             s.send((cube, res)).unwrap()
         })
     });

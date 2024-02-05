@@ -66,15 +66,15 @@ pub struct Config {
     pub thread_count: usize,
     pub search_depth: u32,
     pub preserve_cnf: bool,
+    pub preserve_logs: bool,
     pub cutoff_proportion: f32,
     pub time_proportion: f32,
     pub cutoff: f32,
-    pub preserve_logs: bool,
 }
 
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut vec_output = Vec::with_capacity(11);
+        let mut vec_output = Vec::with_capacity(16);
         vec_output.push(format!("          Variables: {:?}", self.variables));
         vec_output.push(format!("Multitree Variables: {:?}", self.multitree_variables));
         vec_output.push(format!("         Comparator: {}", self.comparator));
@@ -90,10 +90,10 @@ impl fmt::Display for Config {
         vec_output.push(format!("       Thread Count: {}", self.thread_count));
         vec_output.push(format!("       Search Depth: {}", self.search_depth));
         vec_output.push(format!("       Preserve CNF: {}", self.preserve_cnf));
+        vec_output.push(format!("      Preserve Logs: {}", self.preserve_logs));
         vec_output.push(format!("  Cutoff Proportion: {}", self.cutoff_proportion));
         vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
-        vec_output.push(format!("      Preserve Logs: {}", self.preserve_logs));
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)

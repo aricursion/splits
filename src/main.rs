@@ -76,7 +76,7 @@ fn main() -> Result<(), io::Error> {
         config::Comparator::MinOfMax => f32::MAX,
     };
 
-    match config.multitree_variables.clone() {
+    match config.multitree_variables.to_owned(){
         Some(mut multitree_vars) => {
             let hvs = hyper_vec(&mut multitree_vars);
             let original_output_dir = config.output_dir;
