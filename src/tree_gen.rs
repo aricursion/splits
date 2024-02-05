@@ -97,8 +97,8 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
 }
 
 fn run_solver(config: &Config, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
-    let cnf_str = config.cnf.extend_cube_str(&cube);
-    let cnf_loc = format!("{}/{}.cnf", config.tmp_dir, &cube);
+    let cnf_str = config.cnf.extend_cube_str(cube);
+    let cnf_loc = format!("{}/{}.cnf", config.tmp_dir, cube);
     let mut cnf_file = File::create(&cnf_loc)?;
     cnf_file.write_all(cnf_str.as_bytes())?;
 
