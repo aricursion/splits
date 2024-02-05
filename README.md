@@ -30,12 +30,12 @@ This is not suggested unless you have a very large (w)cnf you want to split on. 
 The solver must take two arguments as input `$1` is the (w)cnf file and `$2` is the log file where it should write its output.
 
 The last two line of the solver's standard out should be of the form `SPLITS DATA \n {"metric1": num, "metric2": num, ... "metricn": num}`. 
-Any metric that should be tracked in the logs should be placed in `tracked metrics`. 
-Moreover, the metric used for comparison, the `evaluation metric`, should appear in `tracked metrics`. 
-For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of seconds, the last line of the stdout of the solver would need to be: `{"time": 15.251, "ticks": 15816'}`. 
-This is the default formatting of printing a python dictionary with the exception that double quotes must be used. Then, the config would need to contain:
+Moreover, the metric used for comparison, must appear exactly in the config under `evaluation metric:`.
+
+For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of 'time', the last line of the stdout of the solver would need to be: `{"time": 15.251, "ticks": 15816'}`. 
+This is the default formatting of printing a python dictionary with the exception that double quotes must be used. 
+The config would need to contain:
 ```
-tracked metrics: time ticks
 evaluation metric: time
 ```
 An example wrapper around cadical can be found in the `examples/` directory
