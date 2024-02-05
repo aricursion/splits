@@ -41,6 +41,7 @@ impl Cube {
     pub fn subsumes(&self, Cube(cv1): &Cube) -> bool {
         return self.0.iter().all(|var| cv1.contains(var));
     }
+    
     pub fn extend(&self, var: u32) -> (Cube, Cube) {
         let mut v1 = self.0.clone();
         let mut v2 = self.0.clone();

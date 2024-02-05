@@ -7,16 +7,16 @@ mod reconstruct;
 mod tree_gen;
 mod wcnf;
 
-use crate::config::{Config, ConfigError};
-use crate::cube::Cube;
-use crate::reconstruct::parse_logs;
-use crate::tree_gen::tree_gen;
-use cmd_line::get_args;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
 use std::process::exit;
 use std::{fs, io};
-use tree_gen::hyper_vec;
+
+use cmd_line::get_args;
+use config::{Config, ConfigError};
+use cube::Cube;
+use reconstruct::parse_logs;
+use tree_gen::{hyper_vec, tree_gen};
 
 fn setup_directories(config: &Config) -> Result<(), io::Error> {
     if !Path::exists(Path::new(&config.output_dir)) {
