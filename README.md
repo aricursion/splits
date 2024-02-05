@@ -32,7 +32,7 @@ The solver must take two arguments as input `$1` is the (w)cnf file and `$2` is 
 The last two line of the solver's standard out should be of the form `SPLITS DATA \n {"metric1": num, "metric2": num, ... "metricn": num}`. 
 Moreover, the metric used for comparison, must appear exactly in the config under `evaluation metric:`.
 
-For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of 'time', the last line of the stdout of the solver would need to be: `{"time": 15.251, "ticks": 15816'}`. 
+For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of 'time', the last line written to the log of the solver would need to be: `{"time": 15.251, "ticks": 15816'}`. 
 This is the default formatting of printing a python dictionary with the exception that double quotes must be used. 
 The config would need to contain:
 ```
