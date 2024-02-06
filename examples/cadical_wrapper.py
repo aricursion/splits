@@ -13,69 +13,51 @@ def get_time(cadical_output):
 
 
 def get_conflicts(cadical_output):
-    lookfor1 = "--- [ statistics ] -----------------------"
-    relevant = cadical_output.split(lookfor1)[-1]
-
     lookfor2 = "conflicts:"
     lookfor3 = "per second"
-    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    nums = re.sub(" +", " ", cadical_output.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
 
 def get_blocked(cadical_output):
-    lookfor1 = "--- [ statistics ] -----------------------"
-    relevant = cadical_output.split(lookfor1)[-1]
-
     lookfor2 = "blocked:"
     lookfor3 = "of irredundant"
-    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    nums = re.sub(" +", " ", cadical_output.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
 
 def get_decisions(cadical_output):
-    lookfor1 = "--- [ statistics ] -----------------------"
-    relevant = cadical_output.split(lookfor1)[-1]
-
     lookfor2 = "decisions:"
     lookfor3 = "per second"
-    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    nums = re.sub(" +", " ", cadical_output.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
 
 def get_learned(cadical_output):
-    lookfor1 = "--- [ statistics ] -----------------------"
-    relevant = cadical_output.split(lookfor1)[-1]
-
     lookfor2 = "c learned:"
     lookfor3 = "per conflict"
-    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    nums = re.sub(" +", " ", cadical_output.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
 
 def get_props(cadical_output):
-    lookfor1 = "--- [ statistics ] -----------------------"
-    relevant = cadical_output.split(lookfor1)[-1]
-
     lookfor2 = "propagations:"
     lookfor3 = "per second"
-    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    nums = re.sub(" +", " ", cadical_output.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
 
 def get_subsumed(cadical_output):
-    lookfor1 = "--- [ statistics ] -----------------------"
-    relevant = cadical_output.split(lookfor1)[-1]
-
     lookfor2 = "subsumed:"
     lookfor3 = "of all clauses"
-    nums = re.sub(" +", " ", relevant.split(lookfor2)[1].split(lookfor3)[0]).strip()
+    nums = re.sub(" +", " ", cadical_output.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
 
 def run_cadical():
     f = open(sys.argv[2], "w")
     command = "./testing/cadical"
-    p = subprocess.Popen([command, sys.argv[1]], stdout=f)
+    p = subprocess.Popen([command, "-v", sys.argv[1]], stdout=f)
 
     p.wait()
     f.close()
@@ -83,10 +65,10 @@ def run_cadical():
     f = open(sys.argv[2], "r")
 
     output = f.read()
-    time = get_time(output)
-    blocked = get_blocked(output)
-
+    lookfor1 = "--- [ statistics ] -----------------------"
+    relevant = output.split(lookfor1)[-1]
     f.close()
+
     f = open(sys.argv[2], "a")
 
     # This is the important part:
@@ -94,13 +76,13 @@ def run_cadical():
     # the output in json format
     f.write("SPLITS DATA\n")
     d = dict()
-    d["time"] = time
-    d["blocked"] = blocked
-    d["subsumed"] = get_subsumed(output)
-    d["propogations"] = get_props(output)
-    d["learned"] = get_learned(output)
-    d["decisions"] = get_decisions(output)
-    d["conflicts"] = get_conflicts(output)
+    d["time"] = get_time(relevant)
+    d["blocked"] = get_blocked(relevant)
+    d["subsumed"] = get_subsumed(relevant)
+    d["propogations"] = get_props(relevant)
+    d["learned"] = get_learned(relevant)
+    d["decisions"] = get_decisions(relevant)
+    d["conflicts"] = get_conflicts(relevant)
 
     f.write(f"{d}\n".replace("'", '"'))
 

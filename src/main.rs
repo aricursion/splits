@@ -102,6 +102,10 @@ fn main() -> Result<(), io::Error> {
             )?;
         }
     };
+    
+    if !config.preserve_cnf {
+        fs::remove_dir_all(config.tmp_dir)?;
+    }
 
     Ok(())
 }

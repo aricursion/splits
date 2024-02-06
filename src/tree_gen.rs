@@ -108,12 +108,13 @@ fn run_solver(config: &Config, cube: &Cube, prev_time: f32) -> Result<Option<Str
 
     let timeout_dur = Duration::from_secs_f32(prev_time * config.time_proportion);
 
-    let waited = child.wait_timeout(timeout_dur)?;
-    child.kill()?;
-    child.wait()?;
-    let res = match waited {
+    let res = match child.wait_timeout(timeout_dur)? {
         Some(_) => Ok(Some(log_file_loc)),
-        None => Ok(None),
+        None => {
+            child.kill()?;
+            child.wait()?;
+            Ok(None)
+        },
     };
 
     if !config.preserve_cnf {

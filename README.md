@@ -4,8 +4,7 @@ Satisfiability Parallelism Leveraging Ideal Tree Splits
 # Usage
 In order to run SPLITS, just do `./splits -c config.cfg` where `config.cfg` is a valid config.
 See Configuration Options below for details, and `examples/` for some example configurations. 
-Besides setting up the config for your use case, if you want to use `cadical` or `maxcdcl`, just ensure that in the scripts `cadical_wrapper.py` or `maxcdcl_wrapper.py` the `command` variable matches the location of `cadical` or `maxcdcl` on your system. 
-Also, make sure the tracked metrics agree. 
+Besides setting up the config for your use case, if you want to use `cadical`, just ensure that in the script `cadical_wrapper.py` the `command` variable matches the location of `cadical` on your system. 
 
 # Configuration Options
 - **variables**: The set of variables to split on. These must be positive integers.
@@ -18,7 +17,7 @@ This is not suggested unless you have a very large (w)cnf you want to split on. 
 - **output dir (optional)**: The directory that SPLITS will leave its outputs in. By default it is 'splits_output_directory'
 - **tmp dir (optional)**: The directory that SPLITS will do work in. It will be cleaned up at the end of execution if it goes normally. By default it is 'splits_working_directory'
 - **evaluation metric**: The metric by which vertices should be evaluated. This must appear in tracked metrics. See below for proper configuration details.
-- **thread count (optional)**: The maximum number of threads to be used by SPLITS. **Warning: the default is the max on your system**
+- **thread count (optional)**: The maximum number of threads to be used by SPLITS. **The default is the max on your system**
 - **search depth (optional)**: How deep should each leaf search? The default is 1.
 - **preserve cnf (optional)**: A boolean value whether the generated CNFs should be saved. This can be very costly on storage for large experiments. The default is false. Preserving them will likely results in very large disk usage. This setting is not recommended.
 - **preserve logs (optional)**: A boolean value whether to store the logs of individual cube trials. The default is false. Be warned that for large splits this can generate enormous ammounts of data. Anecdotally, doing a 35 variable, search depth 2 split resulted in 653k log files, totaling over 18 Gb.
@@ -32,7 +31,7 @@ The solver must take two arguments as input `$1` is the (w)cnf file and `$2` is 
 The last two line of the solver's standard out should be of the form `SPLITS DATA \n {"metric1": num, "metric2": num, ... "metricn": num}`. 
 Moreover, the metric used for comparison, must appear exactly in the config under `evaluation metric:`.
 
-For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of 'time', the last line written to the log of the solver would need to be: `{"time": 15.251, "ticks": 15816'}`. 
+For example, if you wanted to track both 'ticks' and 'time' and make splitting decisions based off of 'time', the last line written to the log of the solver would need to be: `{"time": 15.312, "ticks": 15816'}`. 
 This is the default formatting of printing a python dictionary with the exception that double quotes must be used. 
 The config would need to contain:
 ```

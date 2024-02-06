@@ -193,7 +193,7 @@ impl Config {
                     "maxmin" => comparator = Comparator::MaxOfMin,
                     _ => {
                         return Err(ConfigError(
-                            "Failed to recognize Comparison Operator. Please use either 'min' or 'max'.".to_string(),
+                            "Failed to recognize Comparison Operator. Please use either 'minmax' or 'maxin'.".to_string(),
                         ));
                     }
                 },
@@ -221,7 +221,7 @@ impl Config {
                 "wcnf" | "cnf" => {
                     let cnf_path = Path::new(argument);
                     if !cnf_path.exists() {
-                        return Err(ConfigError(format!("Cannot find cnf at location {argument}.")));
+                        return Err(ConfigError(format!("Cannot find (w)cnf at location {argument}.")));
                     }
                     let cnf_string = fs::read_to_string(cnf_path)?;
                     match cnf_string.parse::<SatType>() {

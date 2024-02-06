@@ -132,7 +132,7 @@ mod tests {
     fn random_cnf_to_from_string_tests() {
         let mut rng = rand::thread_rng();
         for _ in 0..1000 {
-            let cnf_length = rng.gen_range(1..10);
+            let cnf_length = rng.gen_range(1..100);
             let cnf_max_var = rng.gen_range(1..10000);
             let mut cnf = Cnf {
                 num_vars: cnf_max_var,
@@ -150,8 +150,6 @@ mod tests {
                 }
                 cnf.clauses.push(Clause(v));
             }
-            println!("{}", cnf);
-            println!("\n");
             assert_eq!(cnf.to_string().parse::<Cnf>().unwrap(), cnf);
             assert_eq!(cnf.to_string().parse::<Cnf>().unwrap().to_string(), cnf.to_string());
         }
