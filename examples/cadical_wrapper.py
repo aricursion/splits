@@ -1,7 +1,8 @@
-#!/usr/bin/python3
+#!/opt/homebrew/bin/python3.11
 import subprocess
 import sys
 import re
+import signal
 
 
 def get_time(cadical_output):
@@ -53,8 +54,16 @@ def get_subsumed(cadical_output):
     nums = re.sub(" +", " ", cadical_output.split(lookfor2)[1].split(lookfor3)[0]).strip()
     return float(nums.split(" ")[0])
 
+p = None
+
+def signal_handler(sig, frame):
+    p.kill()
+    exit(1)
+    
+signal.signal(signal.SIGTERM, signal_handler)
 
 def run_cadical():
+    global p
     f = open(sys.argv[2], "w")
     command = "./testing/cadical"
     p = subprocess.Popen([command, "-v", sys.argv[1]], stdout=f)

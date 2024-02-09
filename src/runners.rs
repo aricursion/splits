@@ -119,10 +119,13 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
 
     let timeout_dur = Duration::from_secs_f32(timeout_time);
 
-    let res = match child.wait_timeout(timeout_dur)? {
+    let tc = child.wait_timeout(timeout_dur)?;
+
+ 
+    let res = match tc {
         Some(_) => Ok(Some(log_file_loc)),
         None => {
-            child.kill()?;
+            let mut child = Command::new("kill").args([format!("{}", child.id())]).spawn()?;
             child.wait()?;
             Ok(None)
         }
