@@ -110,7 +110,7 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
             cadical_counter += 1;
         }
     }
-    println!("{cadical_counter}")
+    println!("{cadical_counter}");
 
 
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
