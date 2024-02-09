@@ -12,6 +12,7 @@ use std::io::{self, Read, Write};
 use std::process::{exit, Command};
 use std::sync::mpsc::channel;
 use std::time::Duration;
+use sysinfo::System;
 use wait_timeout::ChildExt;
 
 fn done_check(config: &Config, cube_vars: &[i32]) -> bool {
@@ -102,6 +103,16 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
     let mut cnf_file = File::create(&cnf_loc)?;
     cnf_file.write_all(cnf_str.as_bytes())?;
 
+    let s = System::new_all();
+    let mut cadical_counter = 0;
+    for (_, process) in s.processes() {
+        if process.name() == "cadical" {
+            cadical_counter += 1;
+        }
+    }
+    println!("{cadical_counter}")
+
+
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
     let mut child = Command::new(&config.solver).args([&cnf_loc, &log_file_loc]).spawn()?;
@@ -161,7 +172,6 @@ pub fn preprocess(config: &mut Config, pool: &ThreadPool) -> Result<(), io::Erro
         })
     });
     let solver_results = receiver.iter();
-
 
     Ok(())
 }
