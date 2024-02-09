@@ -96,7 +96,7 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
     nice_candidates.reduce(cmp_helper)
 }
 
-fn run_solver(config: &Config, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
+fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<String>, io::Error> {
     let cnf_str = config.cnf.extend_cube_str(cube);
     let cnf_loc = format!("{}/{}.cnf", config.tmp_dir, cube);
     let mut cnf_file = File::create(&cnf_loc)?;
@@ -106,7 +106,7 @@ fn run_solver(config: &Config, cube: &Cube, prev_time: f32) -> Result<Option<Str
 
     let mut child = Command::new(&config.solver).args([&cnf_loc, &log_file_loc]).spawn()?;
 
-    let timeout_dur = Duration::from_secs_f32(prev_time * config.time_proportion);
+    let timeout_dur = Duration::from_secs_f32(timeout_time);
 
     let res = match child.wait_timeout(timeout_dur)? {
         Some(_) => Ok(Some(log_file_loc)),
@@ -114,7 +114,7 @@ fn run_solver(config: &Config, cube: &Cube, prev_time: f32) -> Result<Option<Str
             child.kill()?;
             child.wait()?;
             Ok(None)
-        },
+        }
     };
 
     if !config.preserve_cnf {
@@ -143,6 +143,27 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
             exit(1)
         }
     }
+}
+
+pub fn preprocess(config: &mut Config, pool: &ThreadPool) -> Result<(), io::Error> {
+    let mut cubes = Vec::new();
+    for var in &config.variables {
+        let var = *var;
+        cubes.push(Cube(vec![pos_var(var)]));
+        cubes.push(Cube(vec![neg_var(var)]));
+    }
+    let (sender, receiver) = channel();
+
+    pool.install(|| {
+        cubes.into_par_iter().for_each_with(sender, |s, cube| {
+            let res = run_solver(config, &cube, config.timeout as f32);
+            s.send((cube, res)).unwrap()
+        })
+    });
+    let solver_results = receiver.iter();
+
+
+    Ok(())
 }
 
 pub fn tree_gen(
@@ -186,10 +207,10 @@ pub fn tree_gen(
     }
 
     let (sender, receiver) = channel();
-
+    let timeout_time = prev_time * config.time_proportion;
     pool.install(|| {
         commands.into_par_iter().for_each_with(sender, |s, cube| {
-            let res = run_solver(config, &cube, prev_time);
+            let res = run_solver(config, &cube, timeout_time);
             s.send((cube, res)).unwrap()
         })
     });
