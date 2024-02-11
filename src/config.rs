@@ -70,7 +70,7 @@ pub struct Config {
     pub cutoff_proportion: f32,
     pub time_proportion: f32,
     pub cutoff: f32,
-    pub preproc_pct: Option<f32>,
+    pub preproc_count: Option<usize>,
     pub debug: bool,
 }
 
@@ -101,7 +101,7 @@ impl fmt::Display for Config {
         vec_output.push(format!("  Cutoff Proportion: {}", self.cutoff_proportion));
         vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
-        vec_output.push(format!(" Preproc Percentage: {:?}", self.preproc_pct));
+        vec_output.push(format!("   Preprocess Count: {:?}", self.preproc_count));
         vec_output.push(format!("         Debug Mode: {}", self.debug));
 
         let output_str = vec_output.join("\n");
@@ -145,7 +145,7 @@ impl Config {
         let mut cutoff_opt = None;
         let mut time_proportion = 1.0;
 
-        let mut preproc_pct = None;
+        let mut preproc_count = None;
         let mut debug = false;
 
         for line in trimmed_cfg_string.lines() {
@@ -335,18 +335,18 @@ impl Config {
                         )))
                     }
                 },
-                "preprocess percentage" => match argument.parse() {
-                    Ok(f) => {
-                        if f <= 0.0 {
+                "preprocess count" => match argument.parse() {
+                    Ok(n) => {
+                        if n == 0 {
                             return Err(ConfigError(format!(
-                                "Preprocess percentage {f} needs to be a positive float."
+                                "Preprocess count {n} needs to be a positive number."
                             )));
                         }
-                        preproc_pct = Some(f);
+                        preproc_count = Some(n);
                     }
                     Err(_) => {
                         return Err(ConfigError(format!(
-                            "Cannot parse {argument} as a cutoff. Please make sure it is a positive float"
+                            "Cannot parse {argument} as a cutoff. Please make sure it is a positive number"
                         )))
                     }
                 },
@@ -407,7 +407,7 @@ impl Config {
             time_proportion,
             cutoff,
             preserve_logs,
-            preproc_pct,
+            preproc_count,
             debug,
         })
     }

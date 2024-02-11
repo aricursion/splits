@@ -81,7 +81,7 @@ fn main() -> Result<(), io::Error> {
         config::Comparator::MaxOfMin => f32::MIN,
         config::Comparator::MinOfMax => f32::MAX,
     };
-    if config.preproc_pct.is_some() {
+    if config.preproc_count.is_some() {
         config.variables = preprocess(&config, &pool)?;
         if config.debug {
             println!("Set of new variables: {:?}", config.variables);
