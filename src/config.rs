@@ -70,6 +70,8 @@ pub struct Config {
     pub cutoff_proportion: f32,
     pub time_proportion: f32,
     pub cutoff: f32,
+    pub preproc_pct: Option<f32>,
+    pub debug: bool,
 }
 
 impl fmt::Display for Config {
@@ -94,6 +96,7 @@ impl fmt::Display for Config {
         vec_output.push(format!("  Cutoff Proportion: {}", self.cutoff_proportion));
         vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
+        vec_output.push(format!(" Preproc Percentage: {:?}", self.preproc_pct));
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -136,12 +139,13 @@ impl Config {
         let mut cutoff_opt = None;
         let mut time_proportion = 1.0;
 
+        let mut preproc_pct = None;
+
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
-            
+
             let lower_name = partial_parse_line[0].to_lowercase();
             let name = lower_name.trim();
-            
 
             // if the line is a comment or is empty, skip it
             if name.contains('#') || line.trim().is_empty() {
@@ -149,7 +153,7 @@ impl Config {
             }
 
             let argument = partial_parse_line[1].trim();
-            
+
             match name {
                 "variables" => {
                     let mut variable_vec = Vec::new();
@@ -193,7 +197,8 @@ impl Config {
                     "maxmin" => comparator = Comparator::MaxOfMin,
                     _ => {
                         return Err(ConfigError(
-                            "Failed to recognize Comparison Operator. Please use either 'minmax' or 'maxin'.".to_string(),
+                            "Failed to recognize Comparison Operator. Please use either 'minmax' or 'maxin'."
+                                .to_string(),
                         ));
                     }
                 },
@@ -325,6 +330,21 @@ impl Config {
                         )))
                     }
                 },
+                "preprocess percentage" => match argument.parse() {
+                    Ok(f) => {
+                        if f <= 0.0 {
+                            return Err(ConfigError(format!(
+                                "Preprocess percentage {f} needs to be a positive float."
+                            )));
+                        }
+                        preproc_pct = Some(f);
+                    }
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a cutoff. Please make sure it is a positive float"
+                        )))
+                    }
+                },
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting: {unknown}")));
                 }
@@ -374,6 +394,8 @@ impl Config {
             time_proportion,
             cutoff,
             preserve_logs,
+            preproc_pct,
+            debug: true,
         })
     }
 }

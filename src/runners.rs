@@ -3,7 +3,10 @@ use crate::config::{
     Config,
 };
 use crate::cube::{neg_var, pos_var, Cube};
+
 use itertools::Itertools;
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::ThreadPool;
 use std::collections::{hash_map::Entry, HashMap};
@@ -103,15 +106,16 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
     let mut cnf_file = File::create(&cnf_loc)?;
     cnf_file.write_all(cnf_str.as_bytes())?;
 
-    let s = System::new_all();
-    let mut cadical_counter = 0;
-    for (_, process) in s.processes() {
-        if process.name() == "cadical" {
-            cadical_counter += 1;
+    if config.debug {
+        let s = System::new_all();
+        let mut cadical_counter = 0;
+        for process in s.processes().values() {
+            if process.name() == "cadical" {
+                cadical_counter += 1;
+            }
         }
+        println!("Number of running processes before spaawning {cube}: {cadical_counter}");
     }
-    println!("{cadical_counter}");
-
 
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
@@ -121,11 +125,13 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
 
     let tc = child.wait_timeout(timeout_dur)?;
 
- 
     let res = match tc {
         Some(_) => Ok(Some(log_file_loc)),
         None => {
-            let mut child = Command::new("kill").args([format!("{}", child.id())]).spawn()?;
+            if config.debug {
+                println!("Killing cube: {cube}");
+            }
+            signal::kill(Pid::from_raw(child.id() as i32), Signal::SIGTERM)?;
             child.wait()?;
             Ok(None)
         }
@@ -159,24 +165,43 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
     }
 }
 
-pub fn preprocess(config: &mut Config, pool: &ThreadPool) -> Result<(), io::Error> {
+pub fn preprocess(config: &Config, pool: &ThreadPool) -> Result<Vec<u32>, io::Error> {
     let mut cubes = Vec::new();
     for var in &config.variables {
         let var = *var;
-        cubes.push(Cube(vec![pos_var(var)]));
-        cubes.push(Cube(vec![neg_var(var)]));
+        cubes.push((Cube(vec![pos_var(var)]), Cube(vec![neg_var(var)])));
     }
     let (sender, receiver) = channel();
 
     pool.install(|| {
-        cubes.into_par_iter().for_each_with(sender, |s, cube| {
-            let res = run_solver(config, &cube, config.timeout as f32);
-            s.send((cube, res)).unwrap()
+        cubes.into_par_iter().for_each_with(sender, |s, (pos_cube, neg_cube)| {
+            let pos_res = run_solver(config, &pos_cube, config.timeout as f32);
+            let neg_res = run_solver(config, &neg_cube, config.timeout as f32);
+            s.send((pos_cube.0[0] as u32, (pos_res, neg_res))).unwrap()
         })
     });
-    let solver_results = receiver.iter();
+    let mut solver_results = Vec::new();
+    for (var, (pos_log, neg_log)) in receiver.iter() {
+        if let (Some(log1), Some(log2)) = (pos_log?, neg_log?) {
+            let (eval1, _) = parse_logs(config, &log1)?;
+            let (eval2, _) = parse_logs(config, &log2)?;
+            match config.comparator {
+                MaxOfMin => solver_results.push((var, f32::min(eval1, eval2))),
+                MinOfMax => solver_results.push((var, f32::max(eval1, eval2))),
+            }
+        }
+    }
+    if config.debug {
+        println!("Solver results: {:?}", solver_results);
+    }
+    
+    match config.comparator {
+        MaxOfMin => solver_results.sort_by(|(_, x), (_, y)| x.total_cmp(y)),
+        MinOfMax => solver_results.sort_by(|(_, x), (_, y)| y.total_cmp(x)),
+    };
+    let num_vars = (solver_results.len() as f32 * config.preproc_pct.unwrap()) as usize;
 
-    Ok(())
+    Ok(solver_results.into_iter().take(num_vars).map(|(x, _)| x).collect())
 }
 
 pub fn tree_gen(
