@@ -97,6 +97,8 @@ impl fmt::Display for Config {
         vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
         vec_output.push(format!(" Preproc Percentage: {:?}", self.preproc_pct));
+        vec_output.push(format!("         Debug Mode: {}", self.debug));
+
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -140,6 +142,7 @@ impl Config {
         let mut time_proportion = 1.0;
 
         let mut preproc_pct = None;
+        let mut debug = false;
 
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
@@ -244,7 +247,7 @@ impl Config {
                     evaluation_metric_opt = Some(argument.to_string());
                 }
                 "search depth" => {
-                    match argument.parse::<u32>() {
+                    match argument.parse() {
                         Ok(u) => {
                             if u == 0 {
                                 return Err(ConfigError("0 is not a valid search depth.".to_string()));
@@ -257,7 +260,7 @@ impl Config {
                         }
                     }
                 }
-                "thread count" => match argument.parse::<usize>() {
+                "thread count" => match argument.parse() {
                     Ok(u) => {
                         if u == 0 {
                             return Err(ConfigError("0 is not a valid number of threads.".to_string()));
@@ -321,9 +324,7 @@ impl Config {
                     }
                 },
                 "preserve logs" => match argument.parse() {
-                    Ok(b) => {
-                        preserve_logs = b;
-                    }
+                    Ok(b) => preserve_logs = b,
                     Err(_) => {
                         return Err(ConfigError(format!(
                             "Cannot parse {argument} as a boolean for preserving logs."
@@ -342,6 +343,14 @@ impl Config {
                     Err(_) => {
                         return Err(ConfigError(format!(
                             "Cannot parse {argument} as a cutoff. Please make sure it is a positive float"
+                        )))
+                    }
+                },
+                "debug" => match argument.parse() {
+                    Ok(b) => debug = b,
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a boolean for debugging."
                         )))
                     }
                 },
@@ -395,7 +404,7 @@ impl Config {
             cutoff,
             preserve_logs,
             preproc_pct,
-            debug: true,
+            debug,
         })
     }
 }
