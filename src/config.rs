@@ -76,8 +76,13 @@ pub struct Config {
 
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut vec_output = Vec::with_capacity(16);
-        vec_output.push(format!("          Variables: {:?}", self.variables));
+        let mut vec_output = Vec::with_capacity(18);
+        let variable_string = if self.variables.len() <= 30 {
+            format!("{:?}", self.variables)
+        } else {
+            "<Omitted>".to_string()
+        };
+        vec_output.push(format!("          Variables: {variable_string}"));
         vec_output.push(format!("Multitree Variables: {:?}", self.multitree_variables));
         vec_output.push(format!("         Comparator: {}", self.comparator));
         vec_output.push(format!("            Timeout: {}", self.timeout));
@@ -98,7 +103,6 @@ impl fmt::Display for Config {
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
         vec_output.push(format!(" Preproc Percentage: {:?}", self.preproc_pct));
         vec_output.push(format!("         Debug Mode: {}", self.debug));
-
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
