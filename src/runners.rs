@@ -3,15 +3,21 @@ use crate::config::{
     Config,
 };
 use crate::cube::{neg_var, pos_var, Cube};
-use itertools::Itertools;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use rayon::ThreadPool;
+
+use std::cmp::Ordering;
 use std::collections::{hash_map::Entry, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::process::{exit, Command};
 use std::sync::mpsc::channel;
 use std::time::Duration;
+
+use itertools::Itertools;
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::ThreadPool;
+use sysinfo::System;
 use wait_timeout::ChildExt;
 
 fn done_check(config: &Config, cube_vars: &[i32]) -> bool {
@@ -96,25 +102,41 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
     nice_candidates.reduce(cmp_helper)
 }
 
-fn run_solver(config: &Config, cube: &Cube, prev_time: f32) -> Result<Option<String>, io::Error> {
+fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<String>, io::Error> {
     let cnf_str = config.cnf.extend_cube_str(cube);
     let cnf_loc = format!("{}/{}.cnf", config.tmp_dir, cube);
     let mut cnf_file = File::create(&cnf_loc)?;
     cnf_file.write_all(cnf_str.as_bytes())?;
 
+    if config.debug {
+        let s = System::new_all();
+        let mut cadical_counter = 0;
+        for process in s.processes().values() {
+            if process.name() == "cadical" {
+                cadical_counter += 1;
+            }
+        }
+        println!("Number of running processes before spaawning {cube}: {cadical_counter}");
+    }
+
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
     let mut child = Command::new(&config.solver).args([&cnf_loc, &log_file_loc]).spawn()?;
 
-    let timeout_dur = Duration::from_secs_f32(prev_time * config.time_proportion);
+    let timeout_dur = Duration::from_secs_f32(timeout_time);
 
-    let res = match child.wait_timeout(timeout_dur)? {
+    let tc = child.wait_timeout(timeout_dur)?;
+
+    let res = match tc {
         Some(_) => Ok(Some(log_file_loc)),
         None => {
-            child.kill()?;
+            if config.debug {
+                println!("Killing cube: {cube}");
+            }
+            signal::kill(Pid::from_raw(child.id() as i32), Signal::SIGTERM)?;
             child.wait()?;
             Ok(None)
-        },
+        }
     };
 
     if !config.preserve_cnf {
@@ -143,6 +165,47 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
             exit(1)
         }
     }
+}
+
+pub fn preprocess(config: &Config, pool: &ThreadPool) -> Result<Vec<u32>, io::Error> {
+    let mut cubes = Vec::new();
+    for var in &config.variables {
+        let var = *var;
+        cubes.push((Cube(vec![pos_var(var)]), Cube(vec![neg_var(var)])));
+    }
+    let (sender, receiver) = channel();
+
+    pool.install(|| {
+        cubes.into_par_iter().for_each_with(sender, |s, (pos_cube, neg_cube)| {
+            let pos_res = run_solver(config, &pos_cube, config.timeout as f32);
+            let neg_res = run_solver(config, &neg_cube, config.timeout as f32);
+            s.send((pos_cube.0[0] as u32, (pos_res, neg_res))).unwrap()
+        })
+    });
+
+    #[allow(clippy::type_complexity)]
+    let (out_cmp, in_cmp): (fn(f32, f32) -> Ordering, fn(f32, f32) -> f32) = match config.comparator {
+        MaxOfMin => (|x, y| y.total_cmp(&x), f32::min),
+        MinOfMax => (|x, y| x.total_cmp(&y), f32::max),
+    };
+
+    let mut solver_results = Vec::new();
+    for (var, (pos_log, neg_log)) in receiver.iter() {
+        if let (Some(log1), Some(log2)) = (pos_log?, neg_log?) {
+            let (eval1, _) = parse_logs(config, &log1)?;
+            let (eval2, _) = parse_logs(config, &log2)?;
+            solver_results.push((var, in_cmp(eval1, eval2)))
+        }
+    }
+    if config.debug {
+        println!("Solver results: {:?}", solver_results);
+    }
+
+    solver_results.sort_by(|(_, x), (_, y)| out_cmp(*x, *y));
+
+    let num_vars = usize::min(solver_results.len(), config.preproc_count.unwrap());
+
+    Ok(solver_results.into_iter().take(num_vars).map(|(x, _)| x).collect())
 }
 
 pub fn tree_gen(
@@ -186,10 +249,10 @@ pub fn tree_gen(
     }
 
     let (sender, receiver) = channel();
-
+    let timeout_time = prev_time * config.time_proportion;
     pool.install(|| {
         commands.into_par_iter().for_each_with(sender, |s, cube| {
-            let res = run_solver(config, &cube, prev_time);
+            let res = run_solver(config, &cube, timeout_time);
             s.send((cube, res)).unwrap()
         })
     });

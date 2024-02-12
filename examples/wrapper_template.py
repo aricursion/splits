@@ -1,17 +1,30 @@
 #!/usr/bin/python3
 import subprocess
 import sys
+import signal
 
 
 def parse_metric(output: str) -> float:
     NotImplemented
 
 
-def run_cadical():
+p = None
+
+
+def signal_handler(sig, frame):
+    p.kill()
+    exit(1)
+
+
+signal.signal(signal.SIGTERM, signal_handler)
+
+
+def run_solver():
     log_file = open(sys.argv[2], "w")
 
     command = NotImplemented  # fill this in
 
+    global p
     p = subprocess.Popen([command, sys.argv[1]], stdout=log_file)
 
     p.wait()
@@ -41,4 +54,4 @@ def run_cadical():
 
 
 if __name__ == "__main__":
-    run_cadical()
+    run_solver()

@@ -4,7 +4,7 @@ mod cnf;
 mod config;
 mod cube;
 mod reconstruct;
-mod tree_gen;
+mod runners;
 mod wcnf;
 
 use std::io::{stdin, stdout, Write};
@@ -16,7 +16,7 @@ use cmd_line::get_args;
 use config::{Config, ConfigError};
 use cube::Cube;
 use reconstruct::parse_logs;
-use tree_gen::{hyper_vec, tree_gen};
+use runners::{hyper_vec, preprocess, tree_gen};
 
 fn setup_directories(config: &Config) -> Result<(), io::Error> {
     if !Path::exists(Path::new(&config.output_dir)) {
@@ -81,6 +81,12 @@ fn main() -> Result<(), io::Error> {
         config::Comparator::MaxOfMin => f32::MIN,
         config::Comparator::MinOfMax => f32::MAX,
     };
+    if config.preproc_count.is_some() {
+        config.variables = preprocess(&config, &pool)?;
+        if config.debug {
+            println!("Set of new variables: {:?}", config.variables);
+        }
+    }
 
     match config.multitree_variables.to_owned() {
         Some(mut multitree_vars) => {
@@ -102,7 +108,7 @@ fn main() -> Result<(), io::Error> {
             )?;
         }
     };
-    
+
     if !config.preserve_cnf {
         fs::remove_dir_all(config.tmp_dir)?;
     }

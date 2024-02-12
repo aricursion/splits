@@ -70,12 +70,19 @@ pub struct Config {
     pub cutoff_proportion: f32,
     pub time_proportion: f32,
     pub cutoff: f32,
+    pub preproc_count: Option<usize>,
+    pub debug: bool,
 }
 
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut vec_output = Vec::with_capacity(16);
-        vec_output.push(format!("          Variables: {:?}", self.variables));
+        let mut vec_output = Vec::with_capacity(18);
+        let variable_string = if self.variables.len() <= 30 {
+            format!("{:?}", self.variables)
+        } else {
+            "<Omitted>".to_string()
+        };
+        vec_output.push(format!("          Variables: {variable_string}"));
         vec_output.push(format!("Multitree Variables: {:?}", self.multitree_variables));
         vec_output.push(format!("         Comparator: {}", self.comparator));
         vec_output.push(format!("            Timeout: {}", self.timeout));
@@ -94,6 +101,8 @@ impl fmt::Display for Config {
         vec_output.push(format!("  Cutoff Proportion: {}", self.cutoff_proportion));
         vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
+        vec_output.push(format!("   Preprocess Count: {:?}", self.preproc_count));
+        vec_output.push(format!("         Debug Mode: {}", self.debug));
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -136,12 +145,14 @@ impl Config {
         let mut cutoff_opt = None;
         let mut time_proportion = 1.0;
 
+        let mut preproc_count = None;
+        let mut debug = false;
+
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
-            
+
             let lower_name = partial_parse_line[0].to_lowercase();
             let name = lower_name.trim();
-            
 
             // if the line is a comment or is empty, skip it
             if name.contains('#') || line.trim().is_empty() {
@@ -149,7 +160,7 @@ impl Config {
             }
 
             let argument = partial_parse_line[1].trim();
-            
+
             match name {
                 "variables" => {
                     let mut variable_vec = Vec::new();
@@ -193,7 +204,8 @@ impl Config {
                     "maxmin" => comparator = Comparator::MaxOfMin,
                     _ => {
                         return Err(ConfigError(
-                            "Failed to recognize Comparison Operator. Please use either 'minmax' or 'maxin'.".to_string(),
+                            "Failed to recognize Comparison Operator. Please use either 'minmax' or 'maxin'."
+                                .to_string(),
                         ));
                     }
                 },
@@ -239,7 +251,7 @@ impl Config {
                     evaluation_metric_opt = Some(argument.to_string());
                 }
                 "search depth" => {
-                    match argument.parse::<u32>() {
+                    match argument.parse() {
                         Ok(u) => {
                             if u == 0 {
                                 return Err(ConfigError("0 is not a valid search depth.".to_string()));
@@ -252,7 +264,7 @@ impl Config {
                         }
                     }
                 }
-                "thread count" => match argument.parse::<usize>() {
+                "thread count" => match argument.parse() {
                     Ok(u) => {
                         if u == 0 {
                             return Err(ConfigError("0 is not a valid number of threads.".to_string()));
@@ -316,12 +328,33 @@ impl Config {
                     }
                 },
                 "preserve logs" => match argument.parse() {
-                    Ok(b) => {
-                        preserve_logs = b;
-                    }
+                    Ok(b) => preserve_logs = b,
                     Err(_) => {
                         return Err(ConfigError(format!(
                             "Cannot parse {argument} as a boolean for preserving logs."
+                        )))
+                    }
+                },
+                "preprocess count" => match argument.parse() {
+                    Ok(n) => {
+                        if n == 0 {
+                            return Err(ConfigError(format!(
+                                "Preprocess count {n} needs to be a positive number."
+                            )));
+                        }
+                        preproc_count = Some(n);
+                    }
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a cutoff. Please make sure it is a positive number"
+                        )))
+                    }
+                },
+                "debug" => match argument.parse() {
+                    Ok(b) => debug = b,
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a boolean for debugging."
                         )))
                     }
                 },
@@ -374,6 +407,8 @@ impl Config {
             time_proportion,
             cutoff,
             preserve_logs,
+            preproc_count,
+            debug,
         })
     }
 }
