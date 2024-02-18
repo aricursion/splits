@@ -35,13 +35,7 @@ def run_maxcdcl():
 
     # in case we crash
     if p.returncode != 10 and p.returncode != 20:
-        f = open(sys.argv[2], "r")
-        f.write("SPLITS DATA\n")
-        d = dict()
-        d["time"] = 9999999999
-        f.write(f"{d}\n".replace("'", '"'))
-        f.close()
-        exit(1)
+        return
 
     f = open(sys.argv[2], "r")
 
