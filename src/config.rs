@@ -105,16 +105,22 @@ impl fmt::Display for Config {
         match self.prune_pct {
             Some(pct) => {
                 vec_output.push(format!("   Prune Percentage: {}", pct));
-                vec_output.push(format!("        Prune Depth: {:?}", self.prune_depth));
-            },
+                if self.prune_depth != u32::MAX {
+                    vec_output.push(format!("        Prune Depth: {:?}", self.prune_depth));
+                } else {
+                    vec_output.push("        Prune Depth: oo".to_string());
+                }
+            }
             None => {
                 vec_output.push("   Prune Percentage: None".to_string());
                 vec_output.push("        Prune Depth: N/A".to_string());
-            },
+            }
         }
-       
-        vec_output.push(format!("          Max Depth: {:?}", self.max_depth));
-
+        if self.max_depth != u32::MAX {
+            vec_output.push(format!("          Max Depth: {:?}", self.max_depth));
+        } else {
+            vec_output.push("          Max Depth: oo".to_string());
+        }
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -424,7 +430,7 @@ impl Config {
             preserve_logs,
             prune_depth,
             prune_pct,
-            max_depth
+            max_depth,
         })
     }
 }

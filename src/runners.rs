@@ -119,27 +119,42 @@ fn sort_class_vecs(config: &Config, hm: &ClassVecScores) -> Vec<Vec<u32>> {
     let (in_cmp, out_cmp): (fn(f32, f32) -> f32, fn(f32, f32) -> Ordering) = match config.comparator {
         MaxOfMin => {
             let in_cmp = f32::min;
-            let out_cmp = (|x, y| f32::total_cmp(&y, &x)) as fn(f32, f32) -> Ordering;
+            let out_cmp = (|x, y| f32::total_cmp(&x, &y)) as fn(f32, f32) -> Ordering;
             (in_cmp, out_cmp)
         }
         MinOfMax => {
             let in_cmp = f32::max;
-            let out_cmp = (|x, y| f32::total_cmp(&x, &y)) as fn(f32, f32) -> Ordering;
+            let out_cmp = (|x, y| f32::total_cmp(&y, &x)) as fn(f32, f32) -> Ordering;
             (in_cmp, out_cmp)
         }
     };
     let cv_scores_unified = {
         // turn a vec of vecscores into a single score
         let map_helper = |(class_vec, vec_scores): (&Vec<u32>, &Vec<VecScore>)| {
-            let fold_helper = |acc: Option<f32>, next: &VecScore| match (acc, next.eval_met) {
-                (None, None) => None,
-                (None, Some(y)) => Some(y),
-                (Some(x), None) => Some(x),
-                (Some(x), Some(y)) => Some(in_cmp(x, y)),
+            // let fold_helper = |acc: Option<f32>, next: &VecScore| match (acc, next.eval_met) {
+            //     (Some(x), Some(y)) => Some(in_cmp(x, y)),
+            //     _ => None,
+            // };
+
+            // let unified_vec_scores = vec_scores.iter().fold(None, fold_helper);
+            let invalid = vec_scores.iter().any(|VecScore { eval_met, .. }| eval_met.is_none());
+
+            let unified_vec_score = if invalid {
+                None
+            } else {
+                let base = match config.comparator {
+                    MaxOfMin => f32::MAX,
+                    MinOfMax => f32::MIN,
+                };
+                Some(
+                    vec_scores
+                        .iter()
+                        .map(|VecScore { eval_met, .. }| eval_met.unwrap())
+                        .fold(base, in_cmp),
+                )
             };
 
-            let unified_vec_scores = vec_scores.iter().fold(None, fold_helper);
-            (class_vec.clone(), unified_vec_scores)
+            (class_vec.clone(), unified_vec_score)
         };
 
         cv_scores.map(map_helper)
@@ -151,6 +166,8 @@ fn sort_class_vecs(config: &Config, hm: &ClassVecScores) -> Vec<Vec<u32>> {
         (Some(_), None) => Ordering::Greater,
         (Some(x), Some(y)) => out_cmp(*x, *y),
     });
+    let sorted_scores = sorted_scores.rev();
+    println!("sorted scores{:?}", sorted_scores.clone().collect_vec());
     sorted_scores.map(|(vec, _)| vec).collect_vec()
 }
 
@@ -307,7 +324,6 @@ pub fn tree_gen(
         Some(pct) => {
             if config.prune_depth > depth {
                 let sorted_class_vecs = sort_class_vecs(config, &hm_results);
-                println!("sorted vec {:?}", sorted_class_vecs);
                 // get all the variables (removing non-unqiue and skipping the ones in the cc)
 
                 let sorted_vars = sorted_class_vecs
