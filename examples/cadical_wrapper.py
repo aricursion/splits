@@ -81,7 +81,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 def run_cadical():
     global p
     f = open(sys.argv[2], "w")
-    command = "./testing/cadical"
+    command = "cadical"
     p = subprocess.Popen([command, "-v", sys.argv[1]], stdout=f)
 
     p.wait()

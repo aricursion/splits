@@ -37,12 +37,11 @@ fn parse_leaf_cubes(log_loc: &str) -> Result<Vec<Cube>, io::Error> {
     Ok(leaf_cubes)
 }
 
-pub fn parse_logs(log_loc: &str, output_loc: &str) -> Result<(), io::Error> {
+pub fn parse_best_log(log_loc: &str, output_loc: &str) -> Result<(), io::Error> {
     let leaves = parse_leaf_cubes(log_loc)?;
     let mut outfile = OpenOptions::new().write(true).create(true).open(output_loc)?;
     for leaf in leaves {
-        let out_line = format!("a {} 0\n", leaf.to_string().replace('_', " ").replace('n', "-"));
-        outfile.write_all(out_line.as_bytes())?;
+        outfile.write_all(leaf.to_icnf_string().as_bytes())?;
     }
     Ok(())
 }

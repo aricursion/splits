@@ -17,40 +17,48 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::ThreadPool;
-use sysinfo::System;
 use wait_timeout::ChildExt;
 
-fn done_check(config: &Config, cube_vars: &[i32]) -> bool {
-    return config
-        .variables
-        .iter()
-        .all(|x| Cube(cube_vars.to_vec()).contains_var(*x));
+fn done_check(variables: &[u32], cube_vars: &[i32]) -> bool {
+    return variables.iter().all(|x| Cube(cube_vars.to_vec()).contains_var(*x));
 }
 
-// this destroys v
-pub fn hyper_vec(v: &mut Vec<u32>) -> Vec<Vec<i32>> {
-    let mut output: Vec<Vec<i32>> = Vec::new();
-    match v.pop() {
-        Some(x) => {
-            let res = hyper_vec(v);
-            for mut mini_hyper in res {
-                let mut mini_hyper_copy = mini_hyper.clone();
-                mini_hyper.push(pos_var(x));
-                mini_hyper_copy.push(neg_var(x));
-                output.push(mini_hyper);
-                output.push(mini_hyper_copy)
+pub fn hyper_vec(v: &[u32]) -> Vec<Vec<i32>> {
+    fn helper(mut v: Vec<u32>) -> Vec<Vec<i32>> {
+        let mut output: Vec<Vec<i32>> = Vec::new();
+        match v.pop() {
+            Some(x) => {
+                let res = helper(v);
+                for mut mini_hyper in res {
+                    let mut mini_hyper_copy = mini_hyper.clone();
+                    mini_hyper.push(pos_var(x));
+                    mini_hyper_copy.push(neg_var(x));
+                    output.push(mini_hyper);
+                    output.push(mini_hyper_copy)
+                }
+                output
             }
-            output
+            None => vec![vec![]],
         }
-        None => vec![vec![]],
     }
+    helper(v.to_vec())
 }
 
-type ClassVecScores = HashMap<Vec<u32>, Vec<(Vec<i32>, Option<f32>, Option<f32>)>>;
+#[derive(Debug)]
+struct VecScore {
+    cube: Vec<i32>,
+    eval_met: Option<f32>,
+    runtime: Option<f32>,
+}
 
-// this is some garbage code lol
-// I should fix this
-fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec<(Vec<i32>, f32, f32)>> {
+/// The keys are "class vectors" which are just cubes.
+/// The output is a vector which contains
+/// (the element of the class, the evaluation metric, and the time)
+type ClassVecScores = HashMap<Vec<u32>, Vec<VecScore>>;
+
+/// Takes in the class vec scores and returns the best scores being a vector of
+/// (the vector with the score, the metric, and the runtime)
+fn best_class_vec(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec<(Vec<i32>, f32, f32)>> {
     let cmp_helper = match config.comparator {
         MaxOfMin => {
             |winning: Vec<(Vec<i32>, f32, f32)>, chal: Vec<(Vec<i32>, f32, f32)>| -> Vec<(Vec<i32>, f32, f32)> {
@@ -78,17 +86,17 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
         MaxOfMin => hm
             .values()
             .filter(|class_vec| {
-                class_vec
-                    .iter()
-                    .all(|x| x.1.is_some() && x.1.unwrap() > config.cutoff_proportion * prev_metric)
+                class_vec.iter().all(|vec_score| {
+                    vec_score.eval_met.is_some() && vec_score.eval_met.unwrap() > config.cutoff_proportion * prev_metric
+                })
             })
             .collect::<Vec<_>>(),
         MinOfMax => hm
             .values()
             .filter(|class_vec| {
-                class_vec
-                    .iter()
-                    .all(|x| x.1.is_some() && x.1.unwrap() < config.cutoff_proportion * prev_metric)
+                class_vec.iter().all(|vec_score| {
+                    vec_score.eval_met.is_some() && vec_score.eval_met.unwrap() < config.cutoff_proportion * prev_metric
+                })
             })
             .collect::<Vec<_>>(),
     };
@@ -96,10 +104,54 @@ fn compare(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Option<Vec
     let nice_candidates = candidates.iter().map(|class_vec| {
         class_vec
             .iter()
-            .map(|v| (v.0.clone(), v.1.unwrap(), v.2.unwrap()))
+            .map(|v| (v.cube.clone(), v.eval_met.unwrap(), v.runtime.unwrap()))
             .collect::<Vec<_>>()
     });
     nice_candidates.reduce(cmp_helper)
+}
+
+/// Takes in the class vec scores and returns them sorted from
+/// best to worst in a vec of
+/// (class, the scores for the elements in its hc)
+fn sort_class_vecs(config: &Config, hm: &ClassVecScores) -> Vec<Vec<u32>> {
+    let cv_scores = hm.iter();
+    #[allow(clippy::type_complexity)]
+    let (in_cmp, out_cmp): (fn(f32, f32) -> f32, fn(f32, f32) -> Ordering) = match config.comparator {
+        MaxOfMin => {
+            let in_cmp = f32::min;
+            let out_cmp = (|x, y| f32::total_cmp(&y, &x)) as fn(f32, f32) -> Ordering;
+            (in_cmp, out_cmp)
+        }
+        MinOfMax => {
+            let in_cmp = f32::max;
+            let out_cmp = (|x, y| f32::total_cmp(&x, &y)) as fn(f32, f32) -> Ordering;
+            (in_cmp, out_cmp)
+        }
+    };
+    let cv_scores_unified = {
+        // turn a vec of vecscores into a single score
+        let map_helper = |(class_vec, vec_scores): (&Vec<u32>, &Vec<VecScore>)| {
+            let fold_helper = |acc: Option<f32>, next: &VecScore| match (acc, next.eval_met) {
+                (None, None) => None,
+                (None, Some(y)) => Some(y),
+                (Some(x), None) => Some(x),
+                (Some(x), Some(y)) => Some(in_cmp(x, y)),
+            };
+
+            let unified_vec_scores = vec_scores.iter().fold(None, fold_helper);
+            (class_vec.clone(), unified_vec_scores)
+        };
+
+        cv_scores.map(map_helper)
+    };
+
+    let sorted_scores = cv_scores_unified.sorted_by(|(_, cvs1), (_, cv2s)| match (cvs1, cv2s) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Less,
+        (Some(_), None) => Ordering::Greater,
+        (Some(x), Some(y)) => out_cmp(*x, *y),
+    });
+    sorted_scores.map(|(vec, _)| vec).collect_vec()
 }
 
 fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<String>, io::Error> {
@@ -107,17 +159,6 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
     let cnf_loc = format!("{}/{}.cnf", config.tmp_dir, cube);
     let mut cnf_file = File::create(&cnf_loc)?;
     cnf_file.write_all(cnf_str.as_bytes())?;
-
-    if config.debug {
-        let s = System::new_all();
-        let mut cadical_counter = 0;
-        for process in s.processes().values() {
-            if process.name() == "cadical" {
-                cadical_counter += 1;
-            }
-        }
-        println!("Number of running processes before spaawning {cube}: {cadical_counter}");
-    }
 
     let log_file_loc = format!("{}/logs/{}.log", config.output_dir, cube);
 
@@ -130,9 +171,6 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
     let res = match tc {
         Some(_) => Ok(Some(log_file_loc)),
         None => {
-            if config.debug {
-                println!("Killing cube: {cube}");
-            }
             signal::kill(Pid::from_raw(child.id() as i32), Signal::SIGTERM)?;
             child.wait()?;
             Ok(None)
@@ -145,7 +183,10 @@ fn run_solver(config: &Config, cube: &Cube, timeout_time: f32) -> Result<Option<
 
     res
 }
-
+/// The input is a log file and it outputs a pair
+/// consisting of the evaluation metric, and the
+/// map of all the metrics. In particular, "time"
+/// has to be in the hashmap for things to work.
 fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<String, f32>), io::Error> {
     let mut log_file = File::open(log_file_location)?;
     let mut lines = String::new();
@@ -167,72 +208,30 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
     }
 }
 
-pub fn preprocess(config: &Config, pool: &ThreadPool) -> Result<Vec<u32>, io::Error> {
-    let mut cubes = Vec::new();
-    for var in &config.variables {
-        let var = *var;
-        cubes.push((Cube(vec![pos_var(var)]), Cube(vec![neg_var(var)])));
-    }
-    let (sender, receiver) = channel();
-
-    pool.install(|| {
-        cubes.into_par_iter().for_each_with(sender, |s, (pos_cube, neg_cube)| {
-            let pos_res = run_solver(config, &pos_cube, config.timeout as f32);
-            let neg_res = run_solver(config, &neg_cube, config.timeout as f32);
-            s.send((pos_cube.0[0] as u32, (pos_res, neg_res))).unwrap()
-        })
-    });
-
-    #[allow(clippy::type_complexity)]
-    let (out_cmp, in_cmp): (fn(f32, f32) -> Ordering, fn(f32, f32) -> f32) = match config.comparator {
-        MaxOfMin => (|x, y| y.total_cmp(&x), f32::min),
-        MinOfMax => (|x, y| x.total_cmp(&y), f32::max),
-    };
-
-    let mut solver_results = Vec::new();
-    for (var, (pos_log, neg_log)) in receiver.iter() {
-        if let (Some(log1), Some(log2)) = (pos_log?, neg_log?) {
-            let (eval1, _) = parse_logs(config, &log1)?;
-            let (eval2, _) = parse_logs(config, &log2)?;
-            solver_results.push((var, in_cmp(eval1, eval2)))
-        }
-    }
-    if config.debug {
-        println!("Solver results: {:?}", solver_results);
-    }
-
-    solver_results.sort_by(|(_, x), (_, y)| out_cmp(*x, *y));
-
-    let num_vars = usize::min(solver_results.len(), config.preproc_count.unwrap());
-
-    Ok(solver_results.into_iter().take(num_vars).map(|(x, _)| x).collect())
-}
-
 pub fn tree_gen(
     config: &Config,
     pool: &ThreadPool,
     ccube: &Cube,
+    variables: &[u32],
     prev_metric: f32,
     prev_time: f32,
+    depth: u32,
 ) -> Result<(), io::Error> {
+    println!("At cube {} with variables {:?}", ccube, variables);
     let ccube_vec = &ccube.0;
 
-    if done_check(config, ccube_vec) {
+    if done_check(variables, ccube_vec) {
+        println!("Failed to find better cube after {}. Ran out of variables.", ccube);
         return Ok(());
     }
 
-    let num_valid_split_vars = config.variables.len()
-        - ccube
-            .0
-            .iter()
-            .filter(|x| config.variables.contains(&x.unsigned_abs()))
-            .count();
+    let num_valid_split_vars =
+        variables.len() - ccube.0.iter().filter(|x| variables.contains(&x.unsigned_abs())).count();
 
     let search_depth = usize::min(num_valid_split_vars, config.search_depth as usize);
-    let split_var_vecs = config
-        .variables
-        .clone()
-        .into_iter()
+    let split_var_vecs = variables
+        .iter()
+        .copied()
         .combinations(search_depth)
         .collect::<Vec<Vec<u32>>>();
 
@@ -241,7 +240,7 @@ pub fn tree_gen(
         if split_var_vec.iter().any(|x| ccube.contains_var(*x)) {
             continue;
         }
-        let split_vars_hc = hyper_vec(&mut split_var_vec.clone());
+        let split_vars_hc = hyper_vec(split_var_vec);
         for split_var_comb in split_vars_hc {
             let split_var_cube = ccube.extend_vars(split_var_comb);
             commands.push(split_var_cube)
@@ -296,15 +295,41 @@ pub fn tree_gen(
 
         match hm_results.entry(class) {
             Entry::Occupied(mut v) => {
-                v.get_mut().push((cube.0, eval_met, time));
+                v.get_mut().push(VecScore { cube: cube.0, eval_met, runtime: time });
             }
             Entry::Vacant(e) => {
-                e.insert(vec![(cube.0, eval_met, time)]);
+                e.insert(vec![VecScore { cube: cube.0, eval_met, runtime: time }]);
             }
         }
     }
 
-    let best_vec = compare(config, &hm_results, prev_metric);
+    let new_variables = match config.prune_pct {
+        Some(pct) => {
+            if config.prune_depth > depth {
+                let sorted_class_vecs = sort_class_vecs(config, &hm_results);
+                println!("sorted vec {:?}", sorted_class_vecs);
+                // get all the variables (removing non-unqiue and skipping the ones in the cc)
+
+                let sorted_vars = sorted_class_vecs
+                    .into_iter()
+                    .flatten()
+                    .unique()
+                    .skip(search_depth)
+                    .collect_vec();
+                println!("{:?}", sorted_vars);
+                let num_vars = sorted_vars.len();
+                sorted_vars
+                    .into_iter()
+                    .take(((num_vars as f32) * pct) as usize)
+                    .collect()
+            } else {
+                variables.to_vec()
+            }
+        }
+        None => variables.to_vec(),
+    };
+
+    let best_class_vecs = best_class_vec(config, &hm_results, prev_metric);
     let mut best_log_file = OpenOptions::new()
         .write(true)
         .append(true)
@@ -316,7 +341,7 @@ pub fn tree_gen(
         fs::create_dir(format!("{}/logs", config.output_dir))?;
     }
 
-    match best_vec {
+    match best_class_vecs {
         Some(best_vecs) => {
             for v in best_vecs {
                 let extension_vars = v.0.into_iter().rev().take(search_depth).rev().collect::<Vec<_>>();
@@ -326,21 +351,35 @@ pub fn tree_gen(
                 match config.comparator {
                     MaxOfMin => {
                         if v.1 < config.cutoff {
-                            tree_gen(config, pool, &new_cube, v.1, v.2)?
+                            tree_gen(config, pool, &new_cube, &new_variables, v.1, v.2, depth + 1)?
                         }
                     }
                     MinOfMax => {
                         if v.1 > config.cutoff {
-                            tree_gen(config, pool, &new_cube, v.1, v.2)?
+                            tree_gen(config, pool, &new_cube, &new_variables, v.1, v.2, depth + 1)?
                         }
                     }
                 }
             }
         }
         None => {
-            println!("Failed to find further split after cube {}", ccube);
+            println!(
+                "Failed to find further split after cube {}. Could not find better split",
+                ccube
+            );
         }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hyper_vec_test() {
+        let base = vec![1, 2, 3];
+        println!("{:?}", hyper_vec(&base));
+    }
 }

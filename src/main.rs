@@ -15,8 +15,8 @@ use std::{fs, io};
 use cmd_line::get_args;
 use config::{Config, ConfigError};
 use cube::Cube;
-use reconstruct::parse_logs;
-use runners::{hyper_vec, preprocess, tree_gen};
+use reconstruct::parse_best_log;
+use runners::{hyper_vec, tree_gen};
 
 fn setup_directories(config: &Config) -> Result<(), io::Error> {
     if !Path::exists(Path::new(&config.output_dir)) {
@@ -69,43 +69,65 @@ fn main() -> Result<(), io::Error> {
 
     let pool = match rayon::ThreadPoolBuilder::new().num_threads(config.thread_count).build() {
         Ok(p) => p,
-        Err(_) => {
+        Err(e) => {
             println!("Error establishing thread pool");
+            println!("{e}");
             exit(1)
         }
     };
 
     setup_directories(&config)?;
 
-    let start_cutoff = match config.comparator {
+    let start_cutoff_metric = match config.comparator {
         config::Comparator::MaxOfMin => f32::MIN,
         config::Comparator::MinOfMax => f32::MAX,
     };
-    if config.preproc_count.is_some() {
-        config.variables = preprocess(&config, &pool)?;
-        if config.debug {
-            println!("Set of new variables: {:?}", config.variables);
-        }
-    }
+
+    let start_cutoff_time = config.timeout as f32;
+
 
     match config.multitree_variables.to_owned() {
-        Some(mut multitree_vars) => {
-            let hvs = hyper_vec(&mut multitree_vars);
+        Some(multitree_vars) => {
+            let hvs = hyper_vec(&multitree_vars);
             let original_output_dir = config.output_dir;
             for v in hvs {
                 let starter_cube = Cube(v);
                 config.output_dir = format!("{}/{}", original_output_dir, &starter_cube);
                 fs::create_dir(&config.output_dir)?;
                 fs::create_dir(format!("{}/logs", &config.output_dir))?;
-                tree_gen(&config, &pool, &starter_cube, start_cutoff, config.timeout as f32)?;
+                tree_gen(
+                    &config,
+                    &pool,
+                    &starter_cube,
+                    &config.start_variables,
+                    start_cutoff_metric,
+                    start_cutoff_time,
+                    0
+                )?;
+
+                if !config.preserve_logs {
+                    fs::remove_dir_all(format!("{}/logs", &config.output_dir))?
+                }
             }
         }
         None => {
-            tree_gen(&config, &pool, &Cube(Vec::new()), start_cutoff, config.timeout as f32)?;
-            parse_logs(
+            tree_gen(
+                &config,
+                &pool,
+                &Cube(Vec::new()),
+                &config.start_variables,
+                start_cutoff_metric,
+                start_cutoff_time,
+                0
+            )?;
+            parse_best_log(
                 &format!("{}/best.log", config.output_dir),
                 &format!("{}/cubes.icnf", config.output_dir),
             )?;
+
+            if !config.preserve_logs {
+                fs::remove_dir_all(format!("{}/logs", &config.output_dir))?
+            }
         }
     };
 

@@ -54,7 +54,7 @@ impl fmt::Display for Comparator {
 
 #[derive(Debug)]
 pub struct Config {
-    pub variables: Vec<u32>,
+    pub start_variables: Vec<u32>,
     pub multitree_variables: Option<Vec<u32>>,
     pub comparator: Comparator,
     pub timeout: u32,
@@ -70,19 +70,19 @@ pub struct Config {
     pub cutoff_proportion: f32,
     pub time_proportion: f32,
     pub cutoff: f32,
-    pub preproc_count: Option<usize>,
-    pub debug: bool,
+    pub prune_pct: Option<f32>,
+    pub prune_depth: u32,
 }
 
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut vec_output = Vec::with_capacity(18);
-        let variable_string = if self.variables.len() <= 30 {
-            format!("{:?}", self.variables)
+        let variable_string = if self.start_variables.len() <= 30 {
+            format!("{:?}", self.start_variables)
         } else {
             "<Omitted>".to_string()
         };
-        vec_output.push(format!("          Variables: {variable_string}"));
+        vec_output.push(format!(" Starting Variables: {variable_string}"));
         vec_output.push(format!("Multitree Variables: {:?}", self.multitree_variables));
         vec_output.push(format!("         Comparator: {}", self.comparator));
         vec_output.push(format!("            Timeout: {}", self.timeout));
@@ -101,8 +101,8 @@ impl fmt::Display for Config {
         vec_output.push(format!("  Cutoff Proportion: {}", self.cutoff_proportion));
         vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
-        vec_output.push(format!("   Preprocess Count: {:?}", self.preproc_count));
-        vec_output.push(format!("         Debug Mode: {}", self.debug));
+        vec_output.push(format!("   Prune Percentage: {:?}", self.prune_pct));
+        vec_output.push(format!("        Prune Depth: {:?}", self.prune_depth));
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -145,8 +145,8 @@ impl Config {
         let mut cutoff_opt = None;
         let mut time_proportion = 1.0;
 
-        let mut preproc_count = None;
-        let mut debug = false;
+        let mut prune_pct = None;
+        let mut prune_depth = u32::MAX;
 
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
@@ -335,26 +335,19 @@ impl Config {
                         )))
                     }
                 },
-                "preprocess count" => match argument.parse() {
-                    Ok(n) => {
-                        if n == 0 {
-                            return Err(ConfigError(format!(
-                                "Preprocess count {n} needs to be a positive number."
-                            )));
-                        }
-                        preproc_count = Some(n);
-                    }
+                "prune percentage" => match argument.parse() {
+                    Ok(i) => prune_pct = Some(i),
                     Err(_) => {
                         return Err(ConfigError(format!(
-                            "Cannot parse {argument} as a cutoff. Please make sure it is a positive number"
+                            "Cannot parse {argument} as a usize for a prune percentage."
                         )))
                     }
                 },
-                "debug" => match argument.parse() {
-                    Ok(b) => debug = b,
+                "prune depth" => match argument.parse() {
+                    Ok(i) => prune_depth = i,
                     Err(_) => {
                         return Err(ConfigError(format!(
-                            "Cannot parse {argument} as a boolean for debugging."
+                            "Cannot parse {argument} as a u32 for a prune depth."
                         )))
                     }
                 },
@@ -391,7 +384,7 @@ impl Config {
             };
 
         Ok(Config {
-            variables,
+            start_variables: variables,
             multitree_variables,
             comparator,
             timeout,
@@ -407,8 +400,8 @@ impl Config {
             time_proportion,
             cutoff,
             preserve_logs,
-            preproc_count,
-            debug,
+            prune_depth,
+            prune_pct,
         })
     }
 }

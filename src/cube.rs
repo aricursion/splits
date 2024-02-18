@@ -57,13 +57,17 @@ impl Cube {
     }
 
     // Wehther the cube contains the specific polarity of a variables
-    pub fn contains_sign_var(&self, var: i32) -> bool {
+    pub fn contains_signed_var(&self, var: i32) -> bool {
         return self.0.iter().any(|x| *x == var);
     }
 
     // Whether the cube contains either polarity of a variable
     pub fn contains_var(&self, var: u32) -> bool {
         return self.0.iter().any(|x| *x == pos_var(var) || *x == neg_var(var));
+    }
+
+    pub fn to_icnf_string(&self) -> String {
+        format!("a {} 0\n", self.to_string().replace('_', " ").replace('n', "-"))
     }
 }
 
