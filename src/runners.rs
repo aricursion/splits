@@ -341,7 +341,6 @@ pub fn tree_gen(
         fs::create_dir(format!("{}/logs", config.output_dir))?;
     }
 
-
     match best_class_vecs {
         Some(best_vecs) => {
             for v in best_vecs {
@@ -349,19 +348,19 @@ pub fn tree_gen(
                 let new_cube = ccube.extend_vars(extension_vars);
 
                 best_log_file.write_all(format!("{}: {:?}\n", &new_cube, v.1).as_bytes())?;
-                if depth + 1 >= config.max_depth  {
+                if depth + 1 >= config.max_depth {
                     println!("Hit max depth with cube {}", new_cube);
-                    return Ok(())
-                } 
-                match config.comparator {
-                    MaxOfMin => {
-                        if v.1 < config.cutoff {
-                            tree_gen(config, pool, &new_cube, &new_variables, v.1, v.2, depth + 1)?
+                } else {
+                    match config.comparator {
+                        MaxOfMin => {
+                            if v.1 < config.cutoff {
+                                tree_gen(config, pool, &new_cube, &new_variables, v.1, v.2, depth + 1)?
+                            }
                         }
-                    }
-                    MinOfMax => {
-                        if v.1 > config.cutoff {
-                            tree_gen(config, pool, &new_cube, &new_variables, v.1, v.2, depth + 1)?
+                        MinOfMax => {
+                            if v.1 > config.cutoff {
+                                tree_gen(config, pool, &new_cube, &new_variables, v.1, v.2, depth + 1)?
+                            }
                         }
                     }
                 }
