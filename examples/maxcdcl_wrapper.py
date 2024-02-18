@@ -29,7 +29,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 def run_maxcdcl():
     global p
     command = "maxcdcl"
-    p = subprocess.Popen([command, sys.argv[1], sys.argv[2]])
+    p = subprocess.Popen([command, sys.argv[1], sys.argv[2]], stdout=subprocess.DEVNULL)
 
     p.wait()
 

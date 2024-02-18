@@ -72,6 +72,7 @@ pub struct Config {
     pub cutoff: f32,
     pub prune_pct: Option<f32>,
     pub prune_depth: u32,
+    pub max_depth: u32,
 }
 
 impl fmt::Display for Config {
@@ -88,8 +89,8 @@ impl fmt::Display for Config {
         vec_output.push(format!("            Timeout: {}", self.timeout));
         vec_output.push(format!("             Solver: {}", self.solver));
         match self.cnf {
-            SatType::Cnf(_) => vec_output.push("           SAT Type: CNF".to_string()),
-            SatType::Wcnf(_) => vec_output.push("          SAT Type: WCNF".to_string()),
+            SatType::Cnf(_) => vec_output.push("            SAT Type: CNF".to_string()),
+            SatType::Wcnf(_) => vec_output.push("           SAT Type: WCNF".to_string()),
         }
         vec_output.push(format!("   Output Directory: {}", self.output_dir));
         vec_output.push(format!("Temporary Directory: {}", self.tmp_dir));
@@ -101,8 +102,19 @@ impl fmt::Display for Config {
         vec_output.push(format!("  Cutoff Proportion: {}", self.cutoff_proportion));
         vec_output.push(format!("    Time Proportion: {}", self.time_proportion));
         vec_output.push(format!("             Cutoff: {}", self.cutoff));
-        vec_output.push(format!("   Prune Percentage: {:?}", self.prune_pct));
-        vec_output.push(format!("        Prune Depth: {:?}", self.prune_depth));
+        match self.prune_pct {
+            Some(pct) => {
+                vec_output.push(format!("   Prune Percentage: {}", pct));
+                vec_output.push(format!("        Prune Depth: {:?}", self.prune_depth));
+            },
+            None => {
+                vec_output.push("   Prune Percentage: None".to_string());
+                vec_output.push("        Prune Depth: N/A".to_string());
+            },
+        }
+       
+        vec_output.push(format!("          Max Depth: {:?}", self.max_depth));
+
 
         let output_str = vec_output.join("\n");
         write!(f, "{}", output_str)
@@ -147,6 +159,8 @@ impl Config {
 
         let mut prune_pct = None;
         let mut prune_depth = u32::MAX;
+
+        let mut max_depth = u32::MAX;
 
         for line in trimmed_cfg_string.lines() {
             let partial_parse_line = line.split(':').collect::<Vec<_>>();
@@ -351,6 +365,14 @@ impl Config {
                         )))
                     }
                 },
+                "max depth" => match argument.parse() {
+                    Ok(i) => max_depth = i,
+                    Err(_) => {
+                        return Err(ConfigError(format!(
+                            "Cannot parse {argument} as a u32 for a max depth."
+                        )))
+                    }
+                },
                 unknown => {
                     return Err(ConfigError(format!("Unknown config setting: {unknown}")));
                 }
@@ -402,6 +424,7 @@ impl Config {
             preserve_logs,
             prune_depth,
             prune_pct,
+            max_depth
         })
     }
 }
