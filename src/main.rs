@@ -7,15 +7,18 @@ mod reconstruct;
 mod runners;
 mod wcnf;
 
+use clap::CommandFactory;
+use counter::Counter;
+use itertools::Itertools;
 use std::io::{stdin, stdout, Write};
 use std::path::Path;
 use std::process::exit;
 use std::{fs, io};
 
-use cmd_line::get_args;
-use config::{Config, ConfigError};
+use cmd_line::{get_args, Args};
+use config::Config;
 use cube::Cube;
-use reconstruct::parse_best_log;
+use reconstruct::{parse_best_log, parse_leaf_cubes};
 use runners::{hyper_vec, tree_gen};
 
 fn setup_directories(config: &Config) -> Result<(), io::Error> {
@@ -34,9 +37,31 @@ fn setup_directories(config: &Config) -> Result<(), io::Error> {
     Ok(())
 }
 
-fn main() -> Result<(), io::Error> {
-    let args = get_args();
-    let config_string = match fs::read_to_string(args.config_file) {
+fn parse_best(best_loc: &str) -> Result<(), io::Error> {
+    let leaves = parse_leaf_cubes(best_loc)?;
+    let mut var_counter: Counter<u32> = Counter::new();
+
+    let leaf_cubes = leaves.iter().map(|(cube, _)| cube.0.iter().map(|x| x.abs_diff(0)));
+
+    let times = leaves.iter().map(|(_, t)| t);
+    let time_len = times.len();
+    let sum_time = times.fold(0.0, |x, y| x + y);
+    println!("Avg Runtime: {}", sum_time / (time_len as f32));
+    println!("Sum Runtime: {}", sum_time);
+
+    for cube in leaf_cubes {
+        var_counter.extend(cube);
+    }
+    println!(
+        "Variable Occurences: {:?}",
+        var_counter.iter().sorted_by(|(_, x), (_, y)| usize::cmp(y, x))
+    );
+
+    Ok(())
+}
+
+fn run_tree(args: &Args, cfg_loc: &str) -> Result<(), io::Error> {
+    let config_string = match fs::read_to_string(cfg_loc) {
         Ok(s) => s,
         Err(_) => {
             println!("Could not find config file");
@@ -46,8 +71,8 @@ fn main() -> Result<(), io::Error> {
 
     let mut config = match Config::parse_config(&config_string) {
         Ok(c) => c,
-        Err(ConfigError(s)) => {
-            println!("Config Error: {s}");
+        Err(c) => {
+            println!("Config Error: {c}");
             exit(1);
         }
     };
@@ -85,7 +110,6 @@ fn main() -> Result<(), io::Error> {
 
     let start_cutoff_time = config.timeout as f32;
 
-
     match config.multitree_variables.to_owned() {
         Some(multitree_vars) => {
             let hvs = hyper_vec(&multitree_vars);
@@ -102,7 +126,7 @@ fn main() -> Result<(), io::Error> {
                     &config.start_variables,
                     start_cutoff_metric,
                     start_cutoff_time,
-                    0
+                    0,
                 )?;
 
                 if !config.preserve_logs {
@@ -118,7 +142,7 @@ fn main() -> Result<(), io::Error> {
                 &config.start_variables,
                 start_cutoff_metric,
                 start_cutoff_time,
-                0
+                0,
             )?;
             parse_best_log(
                 &format!("{}/best.log", config.output_dir),
@@ -134,6 +158,22 @@ fn main() -> Result<(), io::Error> {
     if !config.preserve_cnf {
         fs::remove_dir_all(config.tmp_dir)?;
     }
-
     Ok(())
+}
+fn main() -> Result<(), io::Error> {
+    let args = get_args();
+
+    match (&args.parse_best, &args.config_file) {
+        (None, Some(cfg_file)) => run_tree(&args, cfg_file),
+        (Some(best_loc), None) => parse_best(best_loc),
+        (None, None) => {
+            Args::command().print_help()?;
+            Ok(())
+        }
+        _ => {
+            println!("Please don't use mutually exclusive options.");
+            println!("If you are reading this I should update this help message");
+            Ok(())
+        }
+    }
 }

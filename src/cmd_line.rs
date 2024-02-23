@@ -3,7 +3,10 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 pub struct Args {
     #[arg(short, long)]
-    pub config_file: String,
+    pub config_file: Option<String>,
+
+    #[arg(short, long)]
+    pub parse_best: Option<String>,
 
     #[arg(long, default_value_t = false)]
     pub no_confirm: bool,
