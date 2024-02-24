@@ -20,7 +20,7 @@ use rayon::ThreadPool;
 use wait_timeout::ChildExt;
 
 fn done_check(variables: &[u32], cube_vars: &[i32]) -> bool {
-    return variables.iter().all(|x| Cube(cube_vars.to_vec()).contains_var(*x));
+    variables.iter().all(|x| Cube(cube_vars.to_vec()).contains_var(*x))
 }
 
 pub fn hyper_vec(v: &[u32]) -> Vec<Vec<i32>> {
@@ -82,7 +82,7 @@ fn best_class_vec(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Opt
         }
     };
 
-    let candidates = match config.comparator {
+    let candidates: Vec<_> = match config.comparator {
         MaxOfMin => hm
             .values()
             .filter(|class_vec| {
@@ -90,7 +90,7 @@ fn best_class_vec(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Opt
                     vec_score.eval_met.is_some() && vec_score.eval_met.unwrap() > config.cutoff_proportion * prev_metric
                 })
             })
-            .collect::<Vec<_>>(),
+            .collect(),
         MinOfMax => hm
             .values()
             .filter(|class_vec| {
@@ -98,14 +98,14 @@ fn best_class_vec(config: &Config, hm: &ClassVecScores, prev_metric: f32) -> Opt
                     vec_score.eval_met.is_some() && vec_score.eval_met.unwrap() < config.cutoff_proportion * prev_metric
                 })
             })
-            .collect::<Vec<_>>(),
+            .collect(),
     };
 
     let nice_candidates = candidates.iter().map(|class_vec| {
         class_vec
             .iter()
             .map(|v| (v.cube.clone(), v.eval_met.unwrap(), v.runtime.unwrap()))
-            .collect::<Vec<_>>()
+            .collect()
     });
     nice_candidates.reduce(cmp_helper)
 }
@@ -131,12 +131,7 @@ fn sort_class_vecs(config: &Config, hm: &ClassVecScores) -> Vec<Vec<u32>> {
     let cv_scores_unified = {
         // turn a vec of vecscores into a single score
         let map_helper = |(class_vec, vec_scores): (&Vec<u32>, &Vec<VecScore>)| {
-            // let fold_helper = |acc: Option<f32>, next: &VecScore| match (acc, next.eval_met) {
-            //     (Some(x), Some(y)) => Some(in_cmp(x, y)),
-            //     _ => None,
-            // };
 
-            // let unified_vec_scores = vec_scores.iter().fold(None, fold_helper);
             let invalid = vec_scores.iter().any(|VecScore { eval_met, .. }| eval_met.is_none());
 
             let unified_vec_score = if invalid {
@@ -225,6 +220,23 @@ fn parse_logs(config: &Config, log_file_location: &str) -> Result<(f32, HashMap<
     }
 }
 
+pub fn tree_gen_top(config: &Config, pool: &ThreadPool) -> Result<(), io::Error> {
+    use crate::config;
+    let start_cutoff_metric = match config.comparator {
+        config::Comparator::MaxOfMin => f32::MIN,
+        config::Comparator::MinOfMax => f32::MAX,
+    };
+
+    let start_time = (1.0 / config.time_proportion) * (config.timeout as f32);
+
+    tree_gen(config, pool, &Cube(Vec::new()), &config.start_variables, start_cutoff_metric, start_time, 0)
+}
+
+/// prev_metric: The metric of the previous iteration. This is passed into `best_cube_vec`
+/// which will only accept cubes that are config.cutoff_proportion * prev_metric (better/worse)
+/// 
+/// prev_time: The time of the previous iteration. This is passed into the runner which will cutoff 
+/// after config.time_proportion * prev_time.
 pub fn tree_gen(
     config: &Config,
     pool: &ThreadPool,
@@ -283,7 +295,6 @@ pub fn tree_gen(
         .open(format!("{}/all.log", config.output_dir))?;
 
     for (cube, log_loc) in solver_results {
-        // println!("Writing {cube} to all.log");
         let (eval_met, time) = match log_loc {
             Ok(Some(log_loc)) => {
                 let (eval_met, all_met) = parse_logs(config, &log_loc)?;

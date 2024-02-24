@@ -19,7 +19,7 @@ use cmd_line::{get_args, Args};
 use config::Config;
 use cube::Cube;
 use reconstruct::{parse_best_log, parse_leaf_cubes};
-use runners::{hyper_vec, tree_gen};
+use runners::{hyper_vec, tree_gen, tree_gen_top};
 
 fn setup_directories(config: &Config) -> Result<(), io::Error> {
     if !Path::exists(Path::new(&config.output_dir)) {
@@ -125,7 +125,7 @@ fn run_tree(args: &Args, cfg_loc: &str) -> Result<(), io::Error> {
                     &starter_cube,
                     &config.start_variables,
                     start_cutoff_metric,
-                    start_cutoff_time,
+                    (1.0 / config.time_proportion) * start_cutoff_time,
                     0,
                 )?;
 
@@ -135,15 +135,7 @@ fn run_tree(args: &Args, cfg_loc: &str) -> Result<(), io::Error> {
             }
         }
         None => {
-            tree_gen(
-                &config,
-                &pool,
-                &Cube(Vec::new()),
-                &config.start_variables,
-                start_cutoff_metric,
-                start_cutoff_time,
-                0,
-            )?;
+            tree_gen_top(&config, &pool)?;
             parse_best_log(
                 &format!("{}/best.log", config.output_dir),
                 &format!("{}/cubes.icnf", config.output_dir),
